@@ -3,19 +3,30 @@ import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
-// Firebase client credentials – read from environment at build time.
-// IMPORTANT: In Vercel, set these values WITHOUT surrounding quotes.
+// Strip surrounding quotes that may leak from Vercel env var values
+const clean = (v: string | undefined) => (v || "").replace(/^["']|["']$/g, "");
+
+const apiKey = clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+  apiKey,
+  authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+  projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+  storageBucket: clean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: clean(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+  appId: clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
 };
 
-export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// During SSG / prerendering the env vars may be empty.
+// Only initialise Firebase when we have a real API key (starts with "AIza").
+const isValidConfig = apiKey.startsWith("AIza");
 
-export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
-export const storage: FirebaseStorage = getStorage(app);
+export const app: FirebaseApp = isValidConfig
+  ? getApps().length > 0
+    ? getApp()
+    : initializeApp(firebaseConfig)
+  : ({} as FirebaseApp);
+
+export const auth: Auth = isValidConfig ? getAuth(app) : ({} as Auth);
+export const db: Firestore = isValidConfig ? getFirestore(app) : ({} as Firestore);
+export const storage: FirebaseStorage = isValidConfig ? getStorage(app) : ({} as FirebaseStorage);
