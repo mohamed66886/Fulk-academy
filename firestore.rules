@@ -1,0 +1,224 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // الدالة المساعدة للتحقق من تسجيل دخول المستخدم
+    // Helper function: Checks if the user is authenticated
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // =========================================================================
+    // الدالة المساعدة للتحقق من صلاحية المسؤول العام عبر Custom Claim
+    // Helper function: Checks if user has Super Admin custom claim
+    // =========================================================================
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.role == 'super_admin';
+    }
+
+    // =========================================================================
+    // الدالة المساعدة للتحقق من ملكية المدرس للبيانات (Multi-Tenant Isolation)
+    // Helper function: Checks if current user is the owner teacher
+    // =========================================================================
+    function isOwner(teacherId) {
+      return isSignedIn() && (
+        request.auth.uid == teacherId ||
+        request.auth.token.teacherId == teacherId
+      );
+    }
+
+    // =========================================================================
+    // قراءة مستند المساعد من قاعدة البيانات
+    // Helper function: Fetches assistant document for the specific teacher
+    // =========================================================================
+    function getAssistantDoc(teacherId) {
+      return get(/databases/$(database)/documents/teachers/$(teacherId)/assistants/$(request.auth.uid));
+    }
+
+    // =========================================================================
+    // التحقق مما إذا كان المستخدم مساعدًا نشطًا مسجلاً تحت هذا المدرس
+    // Helper function: Checks if current user is an active registered assistant
+    // =========================================================================
+    function isAssistant(teacherId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/teachers/$(teacherId)/assistants/$(request.auth.uid)) &&
+        getAssistantDoc(teacherId).data.status == 'active';
+    }
+
+    // =========================================================================
+    // التحقق من صلاحية محددة للمساعد في قسم معين
+    // Helper function: Checks granular permission for assistant (module & action)
+    // =========================================================================
+    function hasPermission(teacherId, module, action) {
+      return isAssistant(teacherId) &&
+        getAssistantDoc(teacherId).data.permissions[module][action] == true;
+    }
+
+    // =========================================================================
+    // التحقق من حالة الحذف المؤقت (Soft Delete)
+    // Helper function: Checks if document is marked as deleted
+    // =========================================================================
+    function isDocDeleted() {
+      return resource.data.deletedAt != null;
+    }
+
+    // =========================================================================
+    // إعدادات المنصة العامة - خاصة بالمسؤول العام فقط
+    // Platform configurations: Super Admin only
+    // =========================================================================
+    match /platform/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // =========================================================================
+    // مستندات المدرسين
+    // Teachers root collection
+    // =========================================================================
+    match /teachers/{teacherId} {
+      // Super Admin فقط من يمكنه إنشاء حسابات المدرسين أو تعطيلها أو حذفها
+      // Only Super Admin can create, disable status, or delete teacher accounts
+      allow create, delete: if isSuperAdmin();
+
+      // المدرس والمسؤول العام والمساعد يمكنهم قراءة بيانات المدرس الأساسية
+      // Teacher, Super Admin, and active assistants can view teacher profile
+      allow get: if isOwner(teacherId) || isSuperAdmin() || isAssistant(teacherId);
+      allow list: if isSuperAdmin();
+
+      // المدرس يمكنه تعديل بياناته الشخصية ولكن لا يمكنه تغيير حالته (status) أو معرّفه
+      // Teacher can update profile details, but cannot alter status or teacherId
+      allow update: if isSuperAdmin() || (
+        isOwner(teacherId) &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.id == resource.data.id
+      );
+
+      // =======================================================================
+      // الصفوف الدراسية (Classes)
+      // =======================================================================
+      match /classes/{classId} {
+        // القراءة متاحة للمدرس والمسؤول والمساعدين لعرض القوائم
+        allow read: if isOwner(teacherId) || isSuperAdmin() || isAssistant(teacherId);
+
+        // الإنشاء والتعديل والحذف يتطلب صلاحية إدارة الطلاب أو المالك
+        allow create: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'create');
+        allow update: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'edit');
+        allow delete: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'delete');
+      }
+
+      // =======================================================================
+      // المجموعات (Groups)
+      // =======================================================================
+      match /groups/{groupId} {
+        // القراءة متاحة للمدرس والمسؤول والمساعدين النشطين
+        allow read: if isOwner(teacherId) || isSuperAdmin() || isAssistant(teacherId);
+
+        // إدارة المجموعات مرتبطة بصلاحيات الطلاب أو المالك
+        allow create: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'create');
+        allow update: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'edit');
+        allow delete: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'delete');
+      }
+
+      // =======================================================================
+      // الطلاب (Students)
+      // ملاحظة: بوابة ولي الأمر (Parent Portal) تتم عبر API Route بالـ Admin SDK
+      // وممنوع وصول غير المسجلين للبيانات مباشرة من الكلاينت لحماية الخصوصية
+      // =======================================================================
+      match /students/{studentId} {
+        // قراءة الطلاب تتطلب صلاحية عرض الطلاب أو المالك
+        allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'view');
+
+        // إضافة طالب جديد: لا يجوز إضافة طالب جديد محذوف مسبقاً
+        allow create: if (isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'create'))
+          && request.resource.data.deletedAt == null;
+
+        // التعديل:
+        // 1. إذا كان الطالب محذوفاً مؤقتاً، لا يمكن تعديله إلا بعملية استرجاع (deletedAt = null)
+        // 2. تطبيق الحذف المؤقت يتطلب صلاحية delete
+        allow update: if (isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'edit')) && (
+          // التعديل العادي على طالب غير محذوف
+          (!isDocDeleted() && request.resource.data.deletedAt == null) ||
+          // تسجيل الحذف المؤقت (Soft Delete) - يتطلب صلاحية الحذف
+          (!isDocDeleted() && request.resource.data.deletedAt != null &&
+            (isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'delete'))) ||
+          // استرجاع طالب محذوف من سلة المحذوفات
+          (isDocDeleted() && request.resource.data.deletedAt == null &&
+            (isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'students', 'delete')))
+        );
+
+        // الحذف النهائي (Permanent Delete): محصور فقط في المالك أو المسؤول العام من سلة المحذوفات
+        allow delete: if isOwner(teacherId) || isSuperAdmin();
+      }
+
+      // =======================================================================
+      // جلسات وسجلات الحضور والغياب (Attendance Sessions & Records)
+      // =======================================================================
+      match /attendanceSessions/{sessionId} {
+        allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'attendance', 'view');
+        allow create: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'attendance', 'create');
+        allow update: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'attendance', 'edit');
+        allow delete: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'attendance', 'delete');
+
+        match /records/{recordStudentId} {
+          allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'attendance', 'view');
+          allow write: if isOwner(teacherId) || isSuperAdmin() ||
+            hasPermission(teacherId, 'attendance', 'create') ||
+            hasPermission(teacherId, 'attendance', 'edit');
+        }
+      }
+
+      // =======================================================================
+      // الامتحانات والنتائج (Exams & Results)
+      // =======================================================================
+      match /exams/{examId} {
+        allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'exams', 'view');
+        allow create: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'exams', 'create');
+        allow update: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'exams', 'edit');
+        allow delete: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'exams', 'delete');
+
+        match /results/{resultStudentId} {
+          allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'exams', 'view');
+          allow write: if isOwner(teacherId) || isSuperAdmin() ||
+            hasPermission(teacherId, 'exams', 'create') ||
+            hasPermission(teacherId, 'exams', 'edit');
+        }
+      }
+
+      // =======================================================================
+      // المدفوعات والاشتراكات (Payments)
+      // =======================================================================
+      match /payments/{paymentId} {
+        allow read: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'payments', 'view');
+        allow create: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'payments', 'create');
+        allow update: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'payments', 'edit');
+        allow delete: if isOwner(teacherId) || isSuperAdmin() || hasPermission(teacherId, 'payments', 'delete');
+      }
+
+      // =======================================================================
+      // المساعدين (Assistants) - ممنوع منعاً باتاً للمساعد تعديل صلاحيات نفسه أو زملائه
+      // =======================================================================
+      match /assistants/{assistantId} {
+        // المساعد يمكنه قراءة مستند حسابه الشخصي لمعرفة صلاحياته، والمالك والمسؤول يقرؤون الجميع
+        allow read: if isOwner(teacherId) || isSuperAdmin() || (isSignedIn() && request.auth.uid == assistantId);
+
+        // إنشاء أو تعديل أو حذف المساعدين وصلاحياتهم محصور في المالك والمسؤول العام
+        allow write: if isOwner(teacherId) || isSuperAdmin();
+      }
+
+      // =======================================================================
+      // سجل التدقيق والمراقبة (Audit Logs)
+      // سجلات غير قابلة للتعديل أو الحذف إطلاقاً (Immutable)
+      // =======================================================================
+      match /auditLogs/{logId} {
+        // المالك والمسؤول فقط يمكنهم استعراض سجلات التدقيق
+        allow read: if isOwner(teacherId) || isSuperAdmin();
+
+        // يمكن تسجيل عملية جديدة فقط، دون إمكانية التعديل أو الحذف
+        allow create: if isOwner(teacherId) || isSuperAdmin() || isAssistant(teacherId);
+        allow update, delete: if false;
+      }
+    }
+  }
+}

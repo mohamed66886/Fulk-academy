@@ -2,26 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Background & Surface */
+    --background: 210 20% 98%;
+    --background-foreground: 222 47% 11%;
+    --surface: 0 0% 100%;
+    --surface-foreground: 222 47% 11%;
+
+    /* Typography / Text */
+    --text: 222 47% 11%;
+    --text-foreground: 210 40% 98%;
+    --muted: 215 16% 47%;
+    --muted-foreground: 214 32% 91%;
+
+    /* Brand / Action colors */
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Borders */
+    --border: 214 32% 91%;
+    --border-foreground: 215 16% 47%;
+
+    /* Status Colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* Background & Surface */
+    --background: 222 47% 7%;
+    --background-foreground: 210 40% 98%;
+    --surface: 222 44% 11%;
+    --surface-foreground: 210 40% 98%;
+
+    /* Typography / Text */
+    --text: 210 40% 98%;
+    --text-foreground: 222 47% 7%;
+    --muted: 215 20% 65%;
+    --muted-foreground: 217 33% 18%;
+
+    /* Brand / Action colors */
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* Borders */
+    --border: 217 33% 18%;
+    --border-foreground: 215 20% 65%;
+
+    /* Status Colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-text font-sans antialiased;
   }
 }

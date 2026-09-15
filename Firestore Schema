@@ -1,0 +1,46 @@
+platform/
+  config/                         (إعدادات عامة تخص Super Admin)
+
+teachers/{teacherId}
+  - name, email, phone, subject, photoUrl, status (active|disabled), createdAt
+
+  classes/{classId}
+    - name, description, status, createdAt
+
+  groups/{groupId}
+    - name, classId, price, hasCenter, centerSessionPrice, status
+    - schedule: [{ day, startTime, endTime }]
+    - createdAt, updatedAt
+
+  students/{studentId}
+    - name, phone, classId, groupId, parentName, parentPhone, photoUrl
+    - qrToken, parentQrToken
+    - groupPrice, discount, finalPrice
+    - status (active|blocked), blockReason, blockedAt, blockedBy
+    - deletedAt, deletedBy   ← Soft Delete
+    - createdAt, updatedAt
+
+  attendanceSessions/{sessionId}
+    - groupId, date, startTime, endTime, createdBy
+    - totalStudents, presentCount, absentCount, lateCount
+
+    records/{studentId}          (subcollection داخل كل session)
+      - status (present|absent|late), scannedAt, source (camera|scanner|manual)
+
+  exams/{examId}
+    - name, classId, groupId, finalGrade, examDate, createdAt
+
+    results/{studentId}
+      - grade, percentage
+
+  payments/{paymentId}
+    - studentId, groupId, month, groupPrice, discount, required, paid, status
+    - createdAt, updatedAt
+
+  assistants/{assistantId}
+    - name, email, phone, status
+    - permissions: { students: {view,create,edit,delete}, attendance: {...},
+                      payments: {...}, exams: {...} }
+
+  auditLogs/{logId}
+    - actorId, actorName, actorRole, action, entityType, entityId, description, createdAt

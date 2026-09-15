@@ -1,0 +1,55 @@
+أنت تعمل على مشروع "فُلك أكاديمي" — SaaS متعدد المستأجرين (Multi-Tenant) لإدارة المدرسين والطلاب.
+
+التزم دائمًا بالتالي:
+
+1. Stack: Next.js 14+ (App Router) + TypeScript (Strict Mode) + Tailwind CSS + Firebase
+   (Auth, Firestore, Storage). ممنوع استخدام أي مكتبة UI جاهزة ثقيلة (زي MUI) —
+   نبني Design System داخلي فوق Tailwind فقط.
+
+2. اللغة: كل الـ UI بالعربية RTL بالكامل (dir="rtl"، خطوط عربية، محاذاة صحيحة).
+   كل أسماء المتغيرات/الفنكشنز/الفولدرز بالإنجليزية دايمًا.
+
+3. Multi-Tenant Isolation هو أهم قاعدة في المشروع:
+   - أي بيانات خاصة بمدرس لازم تكون تحت المسار teachers/{teacherId}/...
+   - ممنوع نهائيًا عمل query بدون فلترة بـ teacherId (إلا Super Admin).
+   - كل عملية Create/Update لازم تتأكد إن المستخدم الحالي فعلاً صاحب الـ teacherId ده
+     (من الـ session، مش من أي input جاي من الفرونت اند).
+
+4. Soft Delete فقط: أي حذف = تحديث حقول deletedAt + deletedBy، لا يوجد
+   permanent delete إلا من صفحة "سلة المحذوفات" وبعد تأكيد صريح.
+
+5. أي Entity رئيسي (Students, Groups, Classes, Exams) لازم يتبع نفس بنية
+   الصفحات الأربعة:
+   /entity  →  /entity/create  →  /entity/[id]  →  /entity/[id]/edit
+
+6. الأداء (Performance) قاعدة إلزامية:
+   - ممنوع جلب قوائم كاملة بدون Pagination (استخدم limit + startAfter من Firestore).
+   - أي بحث نصي يكون Debounced (300ms على الأقل).
+   - استخدم React Server Components لأي صفحة عرض بيانات لا تحتاج تفاعل فوري،
+     واستخدم Client Components فقط عند الحاجة الفعلية (فورم، سكانر، مودال...).
+   - كل Firestore query متكرر لازم يكون عليه Composite Index — لو عملت query
+     جديد، أضف الـ Index المطلوب في firestore.indexes.json فورًا.
+
+7. الأمان (Security):
+   - كل الـ Business Logic الحساسة (حساب المدفوعات، تسجيل الحضور، صلاحيات
+     الـ Assistant) تُنفَّذ في Server Actions / API Routes، وليس في الـ Client مباشرة.
+   - Firestore Security Rules هي خط الدفاع الحقيقي — لا تعتمد أبدًا على إخفاء
+     أزرار في الـ UI كوسيلة حماية وحيدة.
+   - أي متغير حساس (API keys) يُقرأ من .env.local عبر process.env، ولا يُكتب
+     Hardcoded داخل الكود.
+
+8. Design System: ألوان محدودة (Primary / Secondary / Background / Surface /
+   Border / Text / Muted / Success / Warning / Danger) معرّفة كـ CSS variables
+   في tailwind.config. الأيقونات SVG فقط (lucide-react مقبولة). بدون Emojis
+   في الـ UI. تصميم رسمي / Clean / Modern.
+
+9. أي Component بيتكرر في أكتر من صفحة (Table, Badge, Modal, Pagination,
+   FormField...) يُبنى مرة واحدة في components/ui ويُعاد استخدامه، ممنوع تكرار الكود.
+
+10. بعد كل خطوة: شغّل npm run build و npm run lint وتأكد إنهم ناجحين قبل
+    الانتقال للخطوة التالية. لو فيه أي TypeScript error، أصلحه فورًا ولا تتجاهله.
+
+11. اكتب تعليقات (comments) قصيرة بالإنجليزية فوق أي منطق معقّد (خصوصًا حسابات
+    المدفوعات والـ Attendance Sessions)، عشان يسهل الرجوع له لاحقًا.
+
+اسأل قبل ما تنفذ لو أي تعليمة مش واضحة، ولا تفترض حاجة غير مذكورة صراحة.
