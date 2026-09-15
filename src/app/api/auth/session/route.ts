@@ -98,6 +98,20 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error: unknown) {
     const err = error as Error;
-    return NextResponse.json({ error: err.message || "فشل إنشاء الجلسة" }, { status: 500 });
+    console.error("[SESSION_ERROR]", err.message, err.stack);
+    return NextResponse.json(
+      {
+        error: err.message || "فشل إنشاء الجلسة",
+        stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+        debug: {
+          hasAdminProjectId: !!process.env.FIREBASE_ADMIN_PROJECT_ID,
+          hasAdminClientEmail: !!process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+          hasAdminPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+          adminAuthReady: !!adminAuth,
+          adminDbReady: !!adminDb,
+        },
+      },
+      { status: 500 }
+    );
   }
 }
