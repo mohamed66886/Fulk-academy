@@ -22,6 +22,11 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
+    serverComponentsExternalPackages: [
+      "firebase-admin",
+      "jose",
+      "jwks-rsa",
+    ],
   },
 };
 
