@@ -68,13 +68,15 @@ export default function CardsPage() {
             <div className="flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
               <span>
-                <strong>مسح فوري بمسدس الباركود (USB / Laser Scanner):</strong> يسجل حضور الطالب في أقل من ثانية وبدون تأخير عند باب السنتر.
+                <strong>مسح فوري بمسدس الباركود (USB / Laser Scanner):</strong> يسجل حضور الطالب في
+                أقل من ثانية وبدون تأخير عند باب السنتر.
               </span>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
               <span>
-                <strong>دعم كاميرا الجهاز:</strong> تم ضبط كاميرا الحضور للتعرف التلقائي على الباركود المطبوع بدقة عالية.
+                <strong>دعم كاميرا الجهاز:</strong> تم ضبط كاميرا الحضور للتعرف التلقائي على
+                الباركود المطبوع بدقة عالية.
               </span>
             </div>
             <div className="flex items-start gap-2">
@@ -109,13 +111,15 @@ export default function CardsPage() {
             <div className="flex items-start gap-2">
               <Smartphone className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <span>
-                <strong>مسح مباشر بكاميرا الموبايل:</strong> يقوم ولي الأمر بفتح كاميرا هاتفه وتوجيهها نحو الكود ليفتح الرابط فوراً.
+                <strong>مسح مباشر بكاميرا الموبايل:</strong> يقوم ولي الأمر بفتح كاميرا هاتفه
+                وتوجيهها نحو الكود ليفتح الرابط فوراً.
               </span>
             </div>
             <div className="flex items-start gap-2">
               <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <span>
-                <strong>بوابة متابعة شاملة:</strong> يتيح لولي الأمر متابعة سجل الحضور والغياب، درجات الاختبارات الشهرية، وتقارير المتابعة.
+                <strong>بوابة متابعة شاملة:</strong> يتيح لولي الأمر متابعة سجل الحضور والغياب،
+                درجات الاختبارات الشهرية، وتقارير المتابعة.
               </span>
             </div>
             <div className="flex items-start gap-2">
@@ -137,7 +141,8 @@ export default function CardsPage() {
           <div>
             <h3 className="text-sm font-bold text-text">طباعة كارت أي طالب</h3>
             <p className="text-xs text-muted mt-0.5">
-              انتقل لصفحة الطلاب واختر أي طالب، ثم افتح تبويب &quot;الكارت الذكي&quot; لمعاينة الوجهين وطباعتها بمقاس ID القياسي (85.6mm × 54mm) أو تصديرها كصورة PNG عالية الدقة.
+              انتقل لصفحة الطلاب واختر أي طالب، ثم افتح تبويب &quot;الكارت الذكي&quot; لمعاينة
+              الوجهين وطباعتها بمقاس ID القياسي (85.6mm × 54mm) أو تصديرها كصورة PNG عالية الدقة.
             </p>
           </div>
         </div>

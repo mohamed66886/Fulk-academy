@@ -66,6 +66,7 @@ export function AttendanceScanner({
 
       // Play beep sound
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioContext) {
           const ctx = new AudioContext();
@@ -80,7 +81,7 @@ export function AttendanceScanner({
           osc.start();
           osc.stop(ctx.currentTime + 0.1);
         }
-      } catch (e) {
+      } catch {
         // Ignore audio errors (e.g. autoplay restrictions)
       }
 
@@ -140,6 +141,7 @@ export function AttendanceScanner({
         }
 
         const camId = cameraIdToUse || selectedCameraId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const config: any = {
           fps: 20,
           disableFlip: false,
@@ -212,6 +214,7 @@ export function AttendanceScanner({
     if (!scannerRef.current || !scannerRef.current.isScanning) return;
     const newTorchState = !torchOn;
     scannerRef.current
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .applyVideoConstraints({ advanced: [{ torch: newTorchState } as any] })
       .then(() => setTorchOn(newTorchState))
       .catch(() => setTorchOn(false));

@@ -58,7 +58,10 @@ export async function getTodayAttendanceInfo(): Promise<{
       30,
       async () => {
         // Fetch classes for names
-        const classesSnap = await teacherRef.collection("classes").where("deletedAt", "==", null).get();
+        const classesSnap = await teacherRef
+          .collection("classes")
+          .where("deletedAt", "==", null)
+          .get();
         const classMap = new Map<string, string>();
         classesSnap.docs.forEach((d) => classMap.set(d.id, (d.data().name as string) || "—"));
 
@@ -82,7 +85,10 @@ export async function getTodayAttendanceInfo(): Promise<{
               const startMinutes = parseMinutes(todaySch.startTime);
               const endMinutes = parseMinutes(todaySch.endTime);
               // Group is considered "Current" if now is between [start - 30m, end + 30m]
-              if (currentCairoMinutes >= startMinutes - 30 && currentCairoMinutes <= endMinutes + 30) {
+              if (
+                currentCairoMinutes >= startMinutes - 30 &&
+                currentCairoMinutes <= endMinutes + 30
+              ) {
                 isCurrent = true;
               }
             }
@@ -835,12 +841,15 @@ export async function getAttendanceHistory(filters: AttendanceHistoryFilters = {
         // Order descending by date, then startTime with index fallback
         let sessionsDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
         try {
-          let orderedQuery = sessionsQuery.orderBy("date", "desc").orderBy("startTime", "desc");
+          const orderedQuery = sessionsQuery.orderBy("date", "desc").orderBy("startTime", "desc");
           const offset = (page - 1) * pageSize;
           const querySnapshot = await orderedQuery.offset(offset).limit(pageSize).get();
           sessionsDocs = querySnapshot.docs;
         } catch (queryErr) {
-          console.warn("Index warning in getAttendanceHistory, falling back to memory sort:", queryErr);
+          console.warn(
+            "Index warning in getAttendanceHistory, falling back to memory sort:",
+            queryErr
+          );
           const allSessionsSnapshot = await sessionsQuery.get();
           const allDocs = allSessionsSnapshot.docs;
           allDocs.sort((a, b) => {
@@ -867,7 +876,8 @@ export async function getAttendanceHistory(filters: AttendanceHistoryFilters = {
           const presentCount = (d.presentCount as number) || 0;
           const absentCount = (d.absentCount as number) || 0;
           const lateCount = (d.lateCount as number) || 0;
-          const totalStudents = (d.totalStudents as number) || presentCount + absentCount + lateCount;
+          const totalStudents =
+            (d.totalStudents as number) || presentCount + absentCount + lateCount;
           const attendanceRate =
             totalStudents > 0 ? Math.round(((presentCount + lateCount) / totalStudents) * 100) : 0;
 

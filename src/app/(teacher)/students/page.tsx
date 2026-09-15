@@ -4,16 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useStudents,
-  useClassesForSelect,
-  useGroups,
-} from "@/hooks/use-cached-data";
-import {
-  deleteStudent,
-  toggleStudentBlock,
-  type StudentListItem,
-} from "@/lib/actions/students";
+import { useStudents, useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
+import { deleteStudent, toggleStudentBlock, type StudentListItem } from "@/lib/actions/students";
 import {
   Table,
   TableHeader,

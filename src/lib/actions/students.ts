@@ -57,82 +57,126 @@ export async function getStudents(
     const { teacherRef, teacherId } = await checkPermission("students", "view");
 
     const cacheKey = `students:${teacherId}:${JSON.stringify(params)}`;
-    return await withCache(
-      cacheKey,
-      [`students:${teacherId}`],
-      30,
-      async () => {
-        const page = Math.max(1, params.page || 1);
-        const pageSize =
-          params.pageSize && [20, 50, 100].includes(params.pageSize) ? params.pageSize : 20;
-        const sortBy = params.sortBy || "createdAt";
-        const sortOrder = params.sortOrder || "desc";
+    return await withCache(cacheKey, [`students:${teacherId}`], 30, async () => {
+      const page = Math.max(1, params.page || 1);
+      const pageSize =
+        params.pageSize && [20, 50, 100].includes(params.pageSize) ? params.pageSize : 20;
+      const sortBy = params.sortBy || "createdAt";
+      const sortOrder = params.sortOrder || "desc";
 
-    // 1. Fetch classes & groups for label mapping
-    const [classesSnap, groupsSnap] = await Promise.all([
-      teacherRef.collection("classes").where("deletedAt", "==", null).get(),
-      teacherRef.collection("groups").where("deletedAt", "==", null).get(),
-    ]);
+      // 1. Fetch classes & groups for label mapping
+      const [classesSnap, groupsSnap] = await Promise.all([
+        teacherRef.collection("classes").where("deletedAt", "==", null).get(),
+        teacherRef.collection("groups").where("deletedAt", "==", null).get(),
+      ]);
 
-    const classMap = new Map<string, string>();
-    classesSnap.docs.forEach((d) => classMap.set(d.id, (d.data().name as string) || "—"));
+      const classMap = new Map<string, string>();
+      classesSnap.docs.forEach((d) => classMap.set(d.id, (d.data().name as string) || "—"));
 
-    const groupMap = new Map<string, string>();
-    groupsSnap.docs.forEach((d) => groupMap.set(d.id, (d.data().name as string) || "—"));
+      const groupMap = new Map<string, string>();
+      groupsSnap.docs.forEach((d) => groupMap.set(d.id, (d.data().name as string) || "—"));
 
-    const currentMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-09"
+      const currentMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-09"
 
-    // 2. Build active students query
-    let query = teacherRef.collection("students").where("deletedAt", "==", null);
+      // 2. Build active students query
+      let query = teacherRef.collection("students").where("deletedAt", "==", null);
 
-    if (params.classId && params.classId !== "all") {
-      query = query.where("classId", "==", params.classId);
-    }
-    if (params.groupId && params.groupId !== "all") {
-      query = query.where("groupId", "==", params.groupId);
-    }
-    if (params.status && params.status !== "all") {
-      query = query.where("status", "==", params.status);
-    }
-
-    let paginatedDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
-    let totalCount = 0;
-    let totalPages = 1;
-
-    // Fast path: When no text search is provided, use direct Firestore cursor-based limit
-    if (!params.search || !params.search.trim()) {
-      try {
-        const countSnap = await query.count().get();
-        totalCount = countSnap.data().count;
-      } catch {
-        // Fallback for count if aggregation query fails
+      if (params.classId && params.classId !== "all") {
+        query = query.where("classId", "==", params.classId);
       }
-      totalPages = Math.ceil(totalCount / pageSize) || 1;
+      if (params.groupId && params.groupId !== "all") {
+        query = query.where("groupId", "==", params.groupId);
+      }
+      if (params.status && params.status !== "all") {
+        query = query.where("status", "==", params.status);
+      }
 
-      try {
-        let pagedQuery = query.orderBy(sortBy, sortOrder);
+      let paginatedDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+      let totalCount = 0;
+      let totalPages = 1;
 
-        if (page > 1) {
-          const skipCount = (page - 1) * pageSize;
-          const skipSnap = await pagedQuery.limit(skipCount).get();
-          if (!skipSnap.empty) {
-            const lastVisible = skipSnap.docs[skipSnap.docs.length - 1];
-            if (lastVisible) {
-              pagedQuery = pagedQuery.startAfter(lastVisible);
-            }
-          }
+      // Fast path: When no text search is provided, use direct Firestore cursor-based limit
+      if (!params.search || !params.search.trim()) {
+        try {
+          const countSnap = await query.count().get();
+          totalCount = countSnap.data().count;
+        } catch {
+          // Fallback for count if aggregation query fails
         }
-
-        const studentsSnap = await pagedQuery.limit(pageSize).get();
-        paginatedDocs = studentsSnap.docs;
-      } catch (indexError) {
-        console.warn("Firestore index error in getStudents, using memory-sort fallback:", indexError);
-        const allSnap = await query.get();
-        const allDocs = [...allSnap.docs];
-        totalCount = allDocs.length;
         totalPages = Math.ceil(totalCount / pageSize) || 1;
 
-        allDocs.sort((a, b) => {
+        try {
+          let pagedQuery = query.orderBy(sortBy, sortOrder);
+
+          if (page > 1) {
+            const skipCount = (page - 1) * pageSize;
+            const skipSnap = await pagedQuery.limit(skipCount).get();
+            if (!skipSnap.empty) {
+              const lastVisible = skipSnap.docs[skipSnap.docs.length - 1];
+              if (lastVisible) {
+                pagedQuery = pagedQuery.startAfter(lastVisible);
+              }
+            }
+          }
+
+          const studentsSnap = await pagedQuery.limit(pageSize).get();
+          paginatedDocs = studentsSnap.docs;
+        } catch (indexError) {
+          console.warn(
+            "Firestore index error in getStudents, using memory-sort fallback:",
+            indexError
+          );
+          const allSnap = await query.get();
+          const allDocs = [...allSnap.docs];
+          totalCount = allDocs.length;
+          totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+          allDocs.sort((a, b) => {
+            const dataA = a.data();
+            const dataB = b.data();
+            if (sortBy === "name") {
+              const nameA = (dataA.name as string) || "";
+              const nameB = (dataB.name as string) || "";
+              return sortOrder === "asc"
+                ? nameA.localeCompare(nameB, "ar")
+                : nameB.localeCompare(nameA, "ar");
+            }
+            const dateA = (dataA.createdAt as string) || "";
+            const dateB = (dataB.createdAt as string) || "";
+            return sortOrder === "asc" ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+          });
+
+          const startIndex = (page - 1) * pageSize;
+          paginatedDocs = allDocs.slice(startIndex, startIndex + pageSize);
+        }
+      } else {
+        // Text search path: fetch filtered subset
+        const studentsSnap = await query.get();
+        const q = normalizeArabic(params.search.trim());
+        const rawQ = params.search.trim().replace(/\s+/g, "");
+
+        const matchedDocs = studentsSnap.docs.filter((doc) => {
+          const d = doc.data();
+          const searchIdx = (d.searchIndex as string) || "";
+          const name = normalizeArabic((d.name as string) || "");
+          const phone = (d.phone as string) || "";
+          const parentPhone = (d.parentPhone as string) || "";
+          const parentName = normalizeArabic((d.parentName as string) || "");
+
+          return (
+            searchIdx.includes(q) ||
+            name.includes(q) ||
+            phone.includes(rawQ) ||
+            parentPhone.includes(rawQ) ||
+            parentName.includes(q)
+          );
+        });
+
+        totalCount = matchedDocs.length;
+        totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+        // Sort matched docs
+        matchedDocs.sort((a, b) => {
           const dataA = a.data();
           const dataB = b.data();
           if (sortBy === "name") {
@@ -148,107 +192,61 @@ export async function getStudents(
         });
 
         const startIndex = (page - 1) * pageSize;
-        paginatedDocs = allDocs.slice(startIndex, startIndex + pageSize);
+        paginatedDocs = matchedDocs.slice(startIndex, startIndex + pageSize);
       }
-    } else {
-      // Text search path: fetch filtered subset
-      const studentsSnap = await query.get();
-      const q = normalizeArabic(params.search.trim());
-      const rawQ = params.search.trim().replace(/\s+/g, "");
 
-      const matchedDocs = studentsSnap.docs.filter((doc) => {
-        const d = doc.data();
-        const searchIdx = (d.searchIndex as string) || "";
-        const name = normalizeArabic((d.name as string) || "");
-        const phone = (d.phone as string) || "";
-        const parentPhone = (d.parentPhone as string) || "";
-        const parentName = normalizeArabic((d.parentName as string) || "");
+      // 3. Fetch current month payments ONLY for the paginated students on this page
+      const pageStudentIds = paginatedDocs.map((d) => d.id);
+      const paymentMap = new Map<string, "paid" | "partial" | "unpaid">();
 
-        return (
-          searchIdx.includes(q) ||
-          name.includes(q) ||
-          phone.includes(rawQ) ||
-          parentPhone.includes(rawQ) ||
-          parentName.includes(q)
-        );
-      });
+      if (pageStudentIds.length > 0) {
+        for (let i = 0; i < pageStudentIds.length; i += 10) {
+          const chunk = pageStudentIds.slice(i, i + 10);
+          const paymentsSnap = await teacherRef
+            .collection("payments")
+            .where("month", "==", currentMonth)
+            .where("studentId", "in", chunk)
+            .get();
 
-      totalCount = matchedDocs.length;
-      totalPages = Math.ceil(totalCount / pageSize) || 1;
-
-      // Sort matched docs
-      matchedDocs.sort((a, b) => {
-        const dataA = a.data();
-        const dataB = b.data();
-        if (sortBy === "name") {
-          const nameA = (dataA.name as string) || "";
-          const nameB = (dataB.name as string) || "";
-          return sortOrder === "asc"
-            ? nameA.localeCompare(nameB, "ar")
-            : nameB.localeCompare(nameA, "ar");
+          paymentsSnap.docs.forEach((doc) => {
+            const p = doc.data();
+            if (p.studentId) {
+              paymentMap.set(p.studentId, p.status || "unpaid");
+            }
+          });
         }
-        const dateA = (dataA.createdAt as string) || "";
-        const dateB = (dataB.createdAt as string) || "";
-        return sortOrder === "asc" ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+      }
+
+      const students: StudentListItem[] = paginatedDocs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: (data.name as string) || "",
+          phone: (data.phone as string) || "",
+          classId: (data.classId as string) || "",
+          className: classMap.get(data.classId) || "—",
+          groupId: (data.groupId as string) || "",
+          groupName: groupMap.get(data.groupId) || "—",
+          parentName: (data.parentName as string) || "",
+          parentPhone: (data.parentPhone as string) || "",
+          photoUrl: data.photoUrl as string | undefined,
+          status: (data.status as StudentStatus) || "active",
+          paymentStatus: paymentMap.get(doc.id) || "unpaid",
+          finalPrice: Number(data.finalPrice) || 0,
+          discount: Number(data.discount) || 0,
+          createdAt: (data.createdAt as string) || new Date().toISOString(),
+        };
       });
 
-      const startIndex = (page - 1) * pageSize;
-      paginatedDocs = matchedDocs.slice(startIndex, startIndex + pageSize);
-    }
-
-    // 3. Fetch current month payments ONLY for the paginated students on this page
-    const pageStudentIds = paginatedDocs.map((d) => d.id);
-    const paymentMap = new Map<string, "paid" | "partial" | "unpaid">();
-
-    if (pageStudentIds.length > 0) {
-      for (let i = 0; i < pageStudentIds.length; i += 10) {
-        const chunk = pageStudentIds.slice(i, i + 10);
-        const paymentsSnap = await teacherRef
-          .collection("payments")
-          .where("month", "==", currentMonth)
-          .where("studentId", "in", chunk)
-          .get();
-
-        paymentsSnap.docs.forEach((doc) => {
-          const p = doc.data();
-          if (p.studentId) {
-            paymentMap.set(p.studentId, p.status || "unpaid");
-          }
-        });
-      }
-    }
-
-    const students: StudentListItem[] = paginatedDocs.map((doc) => {
-      const data = doc.data();
       return {
-        id: doc.id,
-        name: (data.name as string) || "",
-        phone: (data.phone as string) || "",
-        classId: (data.classId as string) || "",
-        className: classMap.get(data.classId) || "—",
-        groupId: (data.groupId as string) || "",
-        groupName: groupMap.get(data.groupId) || "—",
-        parentName: (data.parentName as string) || "",
-        parentPhone: (data.parentPhone as string) || "",
-        photoUrl: data.photoUrl as string | undefined,
-        status: (data.status as StudentStatus) || "active",
-        paymentStatus: paymentMap.get(doc.id) || "unpaid",
-        finalPrice: Number(data.finalPrice) || 0,
-        discount: Number(data.discount) || 0,
-        createdAt: (data.createdAt as string) || new Date().toISOString(),
+        success: true,
+        students,
+        totalCount,
+        page,
+        pageSize,
+        totalPages,
       };
     });
-
-        return {
-          success: true,
-          students,
-          totalCount,
-          page,
-          pageSize,
-          totalPages,
-        };
-      }
-    );
   } catch (error) {
     return {
       success: false,
@@ -470,7 +468,10 @@ export async function updateStudent(
       };
     }
 
-    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission("students", "edit");
+    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission(
+      "students",
+      "edit"
+    );
     const studentRef = teacherRef.collection("students").doc(studentId);
     const existingSnap = await studentRef.get();
 
@@ -754,7 +755,10 @@ export async function unblockStudent(studentId: string): Promise<{
   error?: string;
 }> {
   try {
-    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission("students", "edit");
+    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission(
+      "students",
+      "edit"
+    );
 
     const studentRef = teacherRef.collection("students").doc(studentId);
     const snap = await studentRef.get();

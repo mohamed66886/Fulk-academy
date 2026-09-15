@@ -15,7 +15,16 @@ export interface ModalProps {
   className?: string;
 }
 
-export function Modal({ isOpen, onClose, title, description, children, footer, size = "md", className }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = "md",
+  className,
+}: ModalProps) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) onClose();
@@ -27,7 +36,9 @@ export function Modal({ isOpen, onClose, title, description, children, footer, s
   React.useEffect(() => {
     if (isOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;

@@ -4,10 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useExams, useClassesAndGroupsForExams } from "@/hooks/use-cached-data";
-import {
-  deleteExam,
-  type ExamListItem,
-} from "@/lib/actions/exams";
+import { deleteExam, type ExamListItem } from "@/lib/actions/exams";
 import {
   Table,
   TableHeader,

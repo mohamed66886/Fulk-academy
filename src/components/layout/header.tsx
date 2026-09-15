@@ -79,14 +79,11 @@ export function Header({
         </button>
 
         {/* مساحة إضافية لأي محتوى */}
-        <div className="hidden sm:block">
-          {children}
-        </div>
+        <div className="hidden sm:block">{children}</div>
       </div>
 
       {/* القسم الأيسر: بيانات المستخدم وزر تسجيل الخروج */}
       <div className="flex items-center gap-3 sm:gap-5">
-        
         {/* بيانات المستخدم (تصميم كبسولة) */}
         <div className="flex items-center gap-3 p-1.5 pr-2 pl-4 rounded-full bg-gray-50 border border-gray-100">
           {/* أيقونة المستخدم (بدون شادو) */}

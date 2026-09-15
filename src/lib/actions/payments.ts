@@ -91,7 +91,10 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
         });
 
         // 2. Fetch existing payments for this month
-        const paymentsSnap = await teacherRef.collection("payments").where("month", "==", month).get();
+        const paymentsSnap = await teacherRef
+          .collection("payments")
+          .where("month", "==", month)
+          .get();
 
         const paymentMap = new Map<string, FirebaseFirestore.DocumentData>();
         paymentsSnap.docs.forEach((d) => {
@@ -235,7 +238,10 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
 
         // Save aggregation document asynchronously
         try {
-          await teacherRef.collection("paymentAggregations").doc(month).set(aggregation, { merge: true });
+          await teacherRef
+            .collection("paymentAggregations")
+            .doc(month)
+            .set(aggregation, { merge: true });
         } catch {
           // Ignored
         }
@@ -314,7 +320,10 @@ export async function updatePayment({
   error?: string;
 }> {
   try {
-    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission("payments", "edit");
+    const { teacherRef, teacherId, actorId, actorName, actorRole } = await checkPermission(
+      "payments",
+      "edit"
+    );
 
     if (!studentId || !month) {
       return { success: false, message: "بيانات الدفع غير مكتملة" };

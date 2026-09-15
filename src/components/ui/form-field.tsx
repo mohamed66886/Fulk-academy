@@ -11,7 +11,15 @@ export interface FormFieldProps {
   children: React.ReactNode;
 }
 
-export function FormField({ id, label, required = false, description, error, className, children }: FormFieldProps) {
+export function FormField({
+  id,
+  label,
+  required = false,
+  description,
+  error,
+  className,
+  children,
+}: FormFieldProps) {
   return (
     <div className={cn("flex flex-col space-y-2 text-right", className)}>
       {label && (

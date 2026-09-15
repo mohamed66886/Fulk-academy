@@ -11,34 +11,21 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStudents, type StudentsQueryParams } from "@/lib/actions/students";
 import { getClasses } from "@/lib/actions/classes";
 import { getGroups, getClassesForSelect } from "@/lib/actions/groups";
-import {
-  getExams,
-  getClassesAndGroupsForExams,
-  type GetExamsFilters,
-} from "@/lib/actions/exams";
-import {
-  getMonthPayments,
-  type GetMonthPaymentsFilters,
-} from "@/lib/actions/payments";
-import {
-  getAttendanceHistory,
-  type AttendanceHistoryFilters,
-} from "@/lib/actions/attendance";
+import { getExams, getClassesAndGroupsForExams, type GetExamsFilters } from "@/lib/actions/exams";
+import { getMonthPayments, type GetMonthPaymentsFilters } from "@/lib/actions/payments";
+import { getAttendanceHistory, type AttendanceHistoryFilters } from "@/lib/actions/attendance";
 import { getTeacherDashboardData } from "@/lib/actions/dashboard";
 
 // ─── Query Key Factories ──────────────────────────────────────
 export const queryKeys = {
   dashboard: () => ["dashboard"] as const,
-  students: (params?: StudentsQueryParams) =>
-    ["students", params ?? {}] as const,
+  students: (params?: StudentsQueryParams) => ["students", params ?? {}] as const,
   classes: () => ["classes"] as const,
   classesForSelect: () => ["classesForSelect"] as const,
-  groups: (classIdFilter?: string) =>
-    ["groups", classIdFilter ?? "all"] as const,
+  groups: (classIdFilter?: string) => ["groups", classIdFilter ?? "all"] as const,
   classesAndGroupsForExams: () => ["classesAndGroupsForExams"] as const,
   exams: (params?: GetExamsFilters) => ["exams", params ?? {}] as const,
-  payments: (params?: GetMonthPaymentsFilters) =>
-    ["payments", params ?? {}] as const,
+  payments: (params?: GetMonthPaymentsFilters) => ["payments", params ?? {}] as const,
   attendanceHistory: (params?: AttendanceHistoryFilters) =>
     ["attendanceHistory", params ?? {}] as const,
 };
@@ -108,10 +95,7 @@ export function useClassesAndGroupsForExams() {
 export function usePayments(params?: GetMonthPaymentsFilters) {
   return useQuery({
     queryKey: queryKeys.payments(params),
-    queryFn: () =>
-      getMonthPayments(
-        params ?? { month: new Date().toISOString().slice(0, 7) }
-      ),
+    queryFn: () => getMonthPayments(params ?? { month: new Date().toISOString().slice(0, 7) }),
     staleTime: 30 * 1000,
   });
 }

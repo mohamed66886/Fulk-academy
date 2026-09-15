@@ -230,14 +230,13 @@ export function Sidebar({
                       <Icon className="h-5 w-5 shrink-0" />
                       {!isCollapsed && <span>{item.label}</span>}
                     </div>
-                    
-                    {!isCollapsed && (
-                      isSubOpen ? (
+
+                    {!isCollapsed &&
+                      (isSubOpen ? (
                         <ChevronDown className="h-4 w-4 shrink-0" />
                       ) : (
                         <ChevronLeft className="h-4 w-4 shrink-0" />
-                      )
-                    )}
+                      ))}
                   </button>
 
                   {/* Sub-items dropdown */}
@@ -291,9 +290,7 @@ export function Sidebar({
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] font-bold",
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-[#4a5361] text-gray-200"
+                      isActive ? "bg-white/20 text-white" : "bg-[#4a5361] text-gray-200"
                     )}
                   >
                     {item.badge}

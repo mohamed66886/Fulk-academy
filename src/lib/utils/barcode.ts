@@ -20,10 +20,7 @@ export interface BarcodeOptions {
 /**
  * Generates a high-quality Data URL (base64 image/png) from a given token using HTML5 Canvas
  */
-export function generateBarcodeDataUrl(
-  token: string,
-  options: BarcodeOptions = {}
-): string {
+export function generateBarcodeDataUrl(token: string, options: BarcodeOptions = {}): string {
   if (!token || typeof window === "undefined") return "";
 
   try {

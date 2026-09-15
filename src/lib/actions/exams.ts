@@ -362,7 +362,10 @@ export async function updateExam(
     }
 
     const data = parsed.data;
-    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission("exams", "edit");
+    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission(
+      "exams",
+      "edit"
+    );
 
     const examRef = teacherRef.collection("exams").doc(examId);
     const existing = await examRef.get();
@@ -454,7 +457,10 @@ export async function deleteExam(examId: string): Promise<{
   error?: string;
 }> {
   try {
-    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission("exams", "delete");
+    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission(
+      "exams",
+      "delete"
+    );
 
     const examRef = teacherRef.collection("exams").doc(examId);
     const existing = await examRef.get();
@@ -628,7 +634,10 @@ export async function bulkSaveExamGrades({
   error?: string;
 }> {
   try {
-    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission("exams", "edit");
+    const { teacherId, actorId, actorName, actorRole, teacherRef } = await checkPermission(
+      "exams",
+      "edit"
+    );
 
     // 1. Fetch Exam to obtain finalGrade
     const examDoc = await teacherRef.collection("exams").doc(examId).get();

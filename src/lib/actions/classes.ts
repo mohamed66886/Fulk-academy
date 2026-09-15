@@ -76,52 +76,50 @@ export async function getClasses(): Promise<{
   try {
     const { teacherRef, teacherId } = await getTeacherAuthContext();
 
-    return await withCache(
-      `classes:${teacherId}`,
-      [`classes:${teacherId}`],
-      60,
-      async () => {
-        const classesSnap = await teacherRef.collection("classes").where("deletedAt", "==", null).get();
+    return await withCache(`classes:${teacherId}`, [`classes:${teacherId}`], 60, async () => {
+      const classesSnap = await teacherRef
+        .collection("classes")
+        .where("deletedAt", "==", null)
+        .get();
 
-        const classes = await Promise.all(
-          classesSnap.docs.map(async (doc) => {
-            const data = doc.data();
+      const classes = await Promise.all(
+        classesSnap.docs.map(async (doc) => {
+          const data = doc.data();
 
-            // Fast aggregations for groups count and students count
-            const [groupsSnap, studentsSnap] = await Promise.all([
-              teacherRef
-                .collection("groups")
-                .where("classId", "==", doc.id)
-                .where("status", "==", "active")
-                .count()
-                .get(),
-              teacherRef
-                .collection("students")
-                .where("classId", "==", doc.id)
-                .where("status", "==", "active")
-                .where("deletedAt", "==", null)
-                .count()
-                .get(),
-            ]);
+          // Fast aggregations for groups count and students count
+          const [groupsSnap, studentsSnap] = await Promise.all([
+            teacherRef
+              .collection("groups")
+              .where("classId", "==", doc.id)
+              .where("status", "==", "active")
+              .count()
+              .get(),
+            teacherRef
+              .collection("students")
+              .where("classId", "==", doc.id)
+              .where("status", "==", "active")
+              .where("deletedAt", "==", null)
+              .count()
+              .get(),
+          ]);
 
-            return {
-              id: doc.id,
-              name: (data.name as string) || "",
-              description: (data.description as string) || "",
-              status: (data.status as "active" | "archived") || "active",
-              createdAt: (data.createdAt as string) || new Date().toISOString(),
-              groupsCount: groupsSnap.data().count,
-              studentsCount: studentsSnap.data().count,
-            };
-          })
-        );
+          return {
+            id: doc.id,
+            name: (data.name as string) || "",
+            description: (data.description as string) || "",
+            status: (data.status as "active" | "archived") || "active",
+            createdAt: (data.createdAt as string) || new Date().toISOString(),
+            groupsCount: groupsSnap.data().count,
+            studentsCount: studentsSnap.data().count,
+          };
+        })
+      );
 
-        // Sort by createdAt descending
-        classes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      // Sort by createdAt descending
+      classes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-        return { success: true, classes };
-      }
-    );
+      return { success: true, classes };
+    });
   } catch (error: unknown) {
     const err = error as Error;
     return { success: false, classes: [], error: err.message };

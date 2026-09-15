@@ -4,10 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGroups, useClassesForSelect } from "@/hooks/use-cached-data";
-import {
-  deleteGroup,
-  type GroupListItem,
-} from "@/lib/actions/groups";
+import { deleteGroup, type GroupListItem } from "@/lib/actions/groups";
 import {
   Table,
   TableHeader,

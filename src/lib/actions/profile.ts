@@ -102,7 +102,7 @@ export async function updateTeacherProfile(
     if (payload.photoUrl !== undefined) {
       updateFields.photoUrl = payload.photoUrl;
     }
-    
+
     if (payload.signatureUrl !== undefined) {
       updateFields.signatureUrl = payload.signatureUrl;
     }

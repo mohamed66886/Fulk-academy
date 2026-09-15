@@ -327,6 +327,7 @@ export function StudentCardView({ student, standalone = false }: StudentCardView
                   {/* Barcode (No text, full width) */}
                   <div className="w-full flex justify-end mt-1.5">
                     {studentBarcodeUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={studentBarcodeUrl}
                         alt="Barcode"
@@ -417,10 +418,10 @@ export function StudentCardView({ student, standalone = false }: StudentCardView
                   {/* Quote — centered within the remaining width */}
                   <div className="w-full text-center mt-1">
                     <p className="text-[11.5px] font-bold text-gray-900 leading-tight">
-                      " انت تصنع مستقبلك بنفسك "
+                      &quot; انت تصنع مستقبلك بنفسك &quot;
                     </p>
                     <p className="text-[11.5px] font-bold text-gray-900 leading-tight mt-1">
-                      " خليك قد ثقة اهلك فيك "
+                      &quot; خليك قد ثقة اهلك فيك &quot;
                     </p>
                   </div>
 

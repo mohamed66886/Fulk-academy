@@ -119,41 +119,44 @@ export default function PaymentsPage() {
   } | null>(null);
 
   // Load payments data
-  const loadPayments = React.useCallback(async (targetMonth: string, showToast = false) => {
-    setLoading(true);
-    try {
-      const res = await getMonthPayments({
-        month: targetMonth,
-      });
-
-      if (res.success) {
-        setStudents(res.students);
-        setAggregation(res.aggregation);
-        setGroups(res.groups);
-
-        // Initialize editing amounts
-        const initialEditing: Record<string, number> = {};
-        res.students.forEach((s) => {
-          initialEditing[s.studentId] = s.paid;
+  const loadPayments = React.useCallback(
+    async (targetMonth: string, showToast = false) => {
+      setLoading(true);
+      try {
+        const res = await getMonthPayments({
+          month: targetMonth,
         });
-        setEditingAmounts(initialEditing);
 
-        // Update React Query cache
-        queryClient.setQueryData(queryKeys.payments({ month: targetMonth }), res);
+        if (res.success) {
+          setStudents(res.students);
+          setAggregation(res.aggregation);
+          setGroups(res.groups);
 
-        if (showToast) {
-          toast.success(`تم تحميل مستحقات شهر ${formatArabicMonth(targetMonth)}`);
+          // Initialize editing amounts
+          const initialEditing: Record<string, number> = {};
+          res.students.forEach((s) => {
+            initialEditing[s.studentId] = s.paid;
+          });
+          setEditingAmounts(initialEditing);
+
+          // Update React Query cache
+          queryClient.setQueryData(queryKeys.payments({ month: targetMonth }), res);
+
+          if (showToast) {
+            toast.success(`تم تحميل مستحقات شهر ${formatArabicMonth(targetMonth)}`);
+          }
+        } else {
+          toast.error(res.error || "فشل تحميل بيانات الشهر");
         }
-      } else {
-        toast.error(res.error || "فشل تحميل بيانات الشهر");
+      } catch (err) {
+        console.error("Error loading payments:", err);
+        toast.error("حدث خطأ أثناء تحميل بيانات المدفوعات");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error loading payments:", err);
-      toast.error("حدث خطأ أثناء تحميل بيانات المدفوعات");
-    } finally {
-      setLoading(false);
-    }
-  }, [queryClient]);
+    },
+    [queryClient]
+  );
 
   // Handle single payment update
   const handleUpdatePayment = async (studentId: string, newPaid: number, customNotes?: string) => {

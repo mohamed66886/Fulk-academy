@@ -33,18 +33,35 @@ export function DropdownMenu({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function DropdownMenuTrigger({ children, className }: { children: React.ReactNode; className?: string; }) {
+export function DropdownMenuTrigger({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   const context = React.useContext(DropdownContext);
   if (!context) throw new Error("DropdownMenuTrigger must be used within DropdownMenu");
 
   return (
-    <div onClick={() => context.setIsOpen((prev) => !prev)} className={cn("inline-flex cursor-pointer", className)}>
+    <div
+      onClick={() => context.setIsOpen((prev) => !prev)}
+      className={cn("inline-flex cursor-pointer", className)}
+    >
       {children}
     </div>
   );
 }
 
-export function DropdownMenuContent({ children, className, align = "start" }: { children: React.ReactNode; className?: string; align?: "start" | "end" | "center"; }) {
+export function DropdownMenuContent({
+  children,
+  className,
+  align = "start",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  align?: "start" | "end" | "center";
+}) {
   const context = React.useContext(DropdownContext);
   if (!context) throw new Error("DropdownMenuContent must be used within DropdownMenu");
   if (!context.isOpen) return null;
@@ -70,7 +87,13 @@ export interface DropdownMenuItemProps extends React.ButtonHTMLAttributes<HTMLBu
   variant?: "default" | "danger";
 }
 
-export function DropdownMenuItem({ className, variant = "default", children, onClick, ...props }: DropdownMenuItemProps) {
+export function DropdownMenuItem({
+  className,
+  variant = "default",
+  children,
+  onClick,
+  ...props
+}: DropdownMenuItemProps) {
   const context = React.useContext(DropdownContext);
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);

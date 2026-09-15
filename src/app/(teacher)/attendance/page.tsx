@@ -558,7 +558,10 @@ function AttendanceContent() {
               <div>
                 <h4 className="flex flex-wrap items-center gap-2 text-sm font-bold text-text">
                   {!isOnline ? "وضع العمل بدون اتصال مفعّل" : "الاتصال بالإنترنت متوفر"}
-                  <Badge variant={!isOnline ? "outline" : "primary"} className="text-[11px] font-bold">
+                  <Badge
+                    variant={!isOnline ? "outline" : "primary"}
+                    className="text-[11px] font-bold"
+                  >
                     {pendingQueueCount} سجل في الانتظار
                   </Badge>
                 </h4>
@@ -603,7 +606,9 @@ function AttendanceContent() {
 
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5">
             <span className="text-xs font-semibold text-primary">نسبة الحضور الحالية</span>
-            <h3 className="mt-0.5 text-xl font-bold text-primary sm:text-2xl">{attendancePercentage}%</h3>
+            <h3 className="mt-0.5 text-xl font-bold text-primary sm:text-2xl">
+              {attendancePercentage}%
+            </h3>
           </div>
         </div>
 
@@ -722,7 +727,10 @@ function AttendanceContent() {
                             {rec.studentId.startsWith("offline_") ? (
                               <span className="flex items-center gap-1.5 text-sm font-bold text-text">
                                 {rec.studentName}
-                                <Badge variant="warning" className="px-1 py-0 text-[10px] font-normal">
+                                <Badge
+                                  variant="warning"
+                                  className="px-1 py-0 text-[10px] font-normal"
+                                >
                                   قيد الانتظار
                                 </Badge>
                               </span>

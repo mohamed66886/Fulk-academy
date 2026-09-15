@@ -17,11 +17,32 @@ export interface PaginationProps extends React.HTMLAttributes<HTMLDivElement> {
   itemLabel?: string;
 }
 
-export function Pagination({ className, hasNextPage, hasPrevPage, onNextPage, onPrevPage, currentPage = 1, isLoading = false, totalCount, pageSize, itemLabel = "عنصر", ...props }: PaginationProps) {
-  const totalPages = totalCount !== undefined && pageSize && pageSize > 0 ? Math.ceil(totalCount / pageSize) : undefined;
+export function Pagination({
+  className,
+  hasNextPage,
+  hasPrevPage,
+  onNextPage,
+  onPrevPage,
+  currentPage = 1,
+  isLoading = false,
+  totalCount,
+  pageSize,
+  itemLabel = "عنصر",
+  ...props
+}: PaginationProps) {
+  const totalPages =
+    totalCount !== undefined && pageSize && pageSize > 0
+      ? Math.ceil(totalCount / pageSize)
+      : undefined;
 
   return (
-    <div className={cn("flex flex-col-reverse sm:flex-row items-center justify-between gap-4 py-4 px-2", className)} {...props}>
+    <div
+      className={cn(
+        "flex flex-col-reverse sm:flex-row items-center justify-between gap-4 py-4 px-2",
+        className
+      )}
+      {...props}
+    >
       <div className="text-sm text-gray-500">
         {totalCount !== undefined ? (
           <span>
