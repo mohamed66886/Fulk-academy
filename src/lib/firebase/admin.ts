@@ -43,8 +43,8 @@ function initAdminApp(): App | null {
     return null;
   }
 
-  // Handle newline characters and strip quotes in the RSA private key string
-  const privateKey = rawPrivateKey.replace(/\\n/g, "\n").replace(/^"|"$/g, "");
+  // Handle private key: strip surrounding quotes first, then convert \\n to real newlines
+  const privateKey = rawPrivateKey.replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
 
   return initializeApp({
     credential: cert({
