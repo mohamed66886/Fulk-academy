@@ -6,7 +6,7 @@
  * background refetching, and optimistic UI updates.
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 import { getStudents, type StudentsQueryParams } from "@/lib/actions/students";
 import { getClasses } from "@/lib/actions/classes";
@@ -35,7 +35,8 @@ export function useDashboard() {
   return useQuery({
     queryKey: queryKeys.dashboard(),
     queryFn: () => getTeacherDashboardData(),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -44,7 +45,9 @@ export function useStudents(params?: StudentsQueryParams) {
   return useQuery({
     queryKey: queryKeys.students(params),
     queryFn: () => getStudents(params),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -53,7 +56,8 @@ export function useClasses() {
   return useQuery({
     queryKey: queryKeys.classes(),
     queryFn: () => getClasses(),
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -61,7 +65,8 @@ export function useClassesForSelect() {
   return useQuery({
     queryKey: queryKeys.classesForSelect(),
     queryFn: () => getClassesForSelect(),
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -70,7 +75,8 @@ export function useGroups(classIdFilter?: string) {
   return useQuery({
     queryKey: queryKeys.groups(classIdFilter),
     queryFn: () => getGroups(classIdFilter),
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -79,7 +85,9 @@ export function useExams(params?: GetExamsFilters) {
   return useQuery({
     queryKey: queryKeys.exams(params),
     queryFn: () => getExams(params),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -87,7 +95,8 @@ export function useClassesAndGroupsForExams() {
   return useQuery({
     queryKey: queryKeys.classesAndGroupsForExams(),
     queryFn: () => getClassesAndGroupsForExams(),
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -96,7 +105,9 @@ export function usePayments(params?: GetMonthPaymentsFilters) {
   return useQuery({
     queryKey: queryKeys.payments(params),
     queryFn: () => getMonthPayments(params ?? { month: new Date().toISOString().slice(0, 7) }),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -105,7 +116,9 @@ export function useAttendanceHistory(params?: AttendanceHistoryFilters) {
   return useQuery({
     queryKey: queryKeys.attendanceHistory(params),
     queryFn: () => getAttendanceHistory(params),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
