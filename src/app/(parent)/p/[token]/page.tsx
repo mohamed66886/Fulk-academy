@@ -83,8 +83,18 @@ function formatArabicMonth(monthStr: string): string {
   const year = parts[0];
   const month = parseInt(parts[1], 10);
   const monthNames = [
-    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-    "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
   ];
   const name = monthNames[month - 1];
   return name ? `${name} ${year}` : monthStr;
@@ -204,7 +214,7 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
               </div>
             )}
           </div>
-          
+
           <div className="space-y-2 flex-1">
             <h1 className="text-xl sm:text-[22px] font-black text-text leading-tight">
               {student.name}
@@ -219,7 +229,7 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
         </div>
 
         {/* Info Tags */}
-{/* Info Tags - Fixed for long text */}
+        {/* Info Tags - Fixed for long text */}
         <div className="grid grid-cols-2 gap-3">
           {/* Class Name */}
           <div className="flex flex-col gap-2.5 p-4 rounded-[20px] bg-secondary">
@@ -234,7 +244,7 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
               {student.className}
             </span>
           </div>
-          
+
           {/* Group Name */}
           <div className="flex flex-col gap-2.5 p-4 rounded-[20px] bg-secondary">
             <div className="flex items-center gap-2">
@@ -285,10 +295,16 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                 </span>
               </div>
               <div className="flex items-end gap-2 mb-3">
-                <span className={cn(
-                  "text-4xl font-black leading-none",
-                  attendance.attendanceRate >= 85 ? "text-emerald-600" : attendance.attendanceRate >= 70 ? "text-amber-600" : "text-rose-600"
-                )}>
+                <span
+                  className={cn(
+                    "text-4xl font-black leading-none",
+                    attendance.attendanceRate >= 85
+                      ? "text-emerald-600"
+                      : attendance.attendanceRate >= 70
+                        ? "text-amber-600"
+                        : "text-rose-600"
+                  )}
+                >
                   {attendance.attendanceRate}%
                 </span>
               </div>
@@ -296,7 +312,11 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    attendance.attendanceRate >= 85 ? "bg-emerald-500" : attendance.attendanceRate >= 70 ? "bg-amber-500" : "bg-rose-500"
+                    attendance.attendanceRate >= 85
+                      ? "bg-emerald-500"
+                      : attendance.attendanceRate >= 70
+                        ? "bg-amber-500"
+                        : "bg-rose-500"
                   )}
                   style={{ width: `${Math.min(100, Math.max(0, attendance.attendanceRate))}%` }}
                 />
@@ -311,9 +331,11 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                 </div>
                 <span className="text-xs font-bold text-emerald-700">أيام الحضور</span>
               </div>
-              <h3 className="text-2xl font-black text-emerald-700">{attendance.presentCount} <span className="text-sm font-bold opacity-80">يوم</span></h3>
+              <h3 className="text-2xl font-black text-emerald-700">
+                {attendance.presentCount} <span className="text-sm font-bold opacity-80">يوم</span>
+              </h3>
             </div>
-            
+
             {/* Absent Count */}
             <div className="p-4 rounded-[20px] bg-rose-50 flex flex-col justify-center border border-rose-100">
               <div className="flex items-center gap-2 mb-2">
@@ -322,7 +344,9 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                 </div>
                 <span className="text-xs font-bold text-rose-700">أيام الغياب</span>
               </div>
-              <h3 className="text-2xl font-black text-rose-700">{attendance.absentCount} <span className="text-sm font-bold opacity-80">يوم</span></h3>
+              <h3 className="text-2xl font-black text-rose-700">
+                {attendance.absentCount} <span className="text-sm font-bold opacity-80">يوم</span>
+              </h3>
             </div>
           </div>
 
@@ -343,21 +367,43 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                       className="flex items-center justify-between p-4 rounded-[20px] bg-surface shadow-sm"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                          isPresent ? "bg-emerald-50 text-emerald-600" : isLate ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
-                        )}>
-                          {isPresent ? <CheckCircle2 className="h-5 w-5" /> : isLate ? <Clock className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                            isPresent
+                              ? "bg-emerald-50 text-emerald-600"
+                              : isLate
+                                ? "bg-amber-50 text-amber-600"
+                                : "bg-rose-50 text-rose-600"
+                          )}
+                        >
+                          {isPresent ? (
+                            <CheckCircle2 className="h-5 w-5" />
+                          ) : isLate ? (
+                            <Clock className="h-5 w-5" />
+                          ) : (
+                            <XCircle className="h-5 w-5" />
+                          )}
                         </div>
                         <div className="space-y-0.5 text-right">
-                          <p className="text-sm font-bold text-text">{formatArabicDate(rec.date)}</p>
-                          {rec.startTime && <p className="text-xs font-bold text-muted">{rec.startTime}</p>}
+                          <p className="text-sm font-bold text-text">
+                            {formatArabicDate(rec.date)}
+                          </p>
+                          {rec.startTime && (
+                            <p className="text-xs font-bold text-muted">{rec.startTime}</p>
+                          )}
                         </div>
                       </div>
-                      <span className={cn(
-                        "text-[11px] font-black px-3 py-1.5 rounded-lg",
-                        isPresent ? "bg-emerald-100 text-emerald-700" : isLate ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
-                      )}>
+                      <span
+                        className={cn(
+                          "text-[11px] font-black px-3 py-1.5 rounded-lg",
+                          isPresent
+                            ? "bg-emerald-100 text-emerald-700"
+                            : isLate
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-rose-100 text-rose-700"
+                        )}
+                      >
                         {isPresent ? "حاضر" : isLate ? "متأخر" : "غائب"}
                       </span>
                     </div>
@@ -380,21 +426,44 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
               const isPaid = p.status === "paid";
               const isPartial = p.status === "partial";
               return (
-                <div key={p.id} className="flex flex-col p-4 rounded-[20px] bg-surface shadow-sm gap-3">
+                <div
+                  key={p.id}
+                  className="flex flex-col p-4 rounded-[20px] bg-surface shadow-sm gap-3"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                        isPaid ? "bg-emerald-50 text-emerald-600" : isPartial ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
-                      )}>
-                        {isPaid ? <CheckCircle2 className="h-5 w-5" /> : isPartial ? <Clock3 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                          isPaid
+                            ? "bg-emerald-50 text-emerald-600"
+                            : isPartial
+                              ? "bg-amber-50 text-amber-600"
+                              : "bg-rose-50 text-rose-600"
+                        )}
+                      >
+                        {isPaid ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : isPartial ? (
+                          <Clock3 className="h-5 w-5" />
+                        ) : (
+                          <XCircle className="h-5 w-5" />
+                        )}
                       </div>
-                      <h4 className="text-base font-black text-text">{formatArabicMonth(p.month)}</h4>
+                      <h4 className="text-base font-black text-text">
+                        {formatArabicMonth(p.month)}
+                      </h4>
                     </div>
-                    <span className={cn(
-                      "text-[11px] font-black px-3 py-1.5 rounded-lg",
-                      isPaid ? "bg-emerald-100 text-emerald-700" : isPartial ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
-                    )}>
+                    <span
+                      className={cn(
+                        "text-[11px] font-black px-3 py-1.5 rounded-lg",
+                        isPaid
+                          ? "bg-emerald-100 text-emerald-700"
+                          : isPartial
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-rose-100 text-rose-700"
+                      )}
+                    >
                       {isPaid ? "مدفوع" : isPartial ? "جزء" : "غير مدفوع"}
                     </span>
                   </div>
@@ -423,18 +492,28 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
               const isExc = pct >= 90;
               const isVG = pct >= 80 && pct < 90;
               const isGood = pct >= 65 && pct < 80;
-              
+
               return (
                 <div key={ex.id} className="p-5 rounded-[20px] bg-surface shadow-sm space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-base font-black text-text mb-1">{ex.examName}</h4>
-                      <span className="text-[11px] font-bold text-muted">{formatArabicDate(ex.examDate)}</span>
+                      <span className="text-[11px] font-bold text-muted">
+                        {formatArabicDate(ex.examDate)}
+                      </span>
                     </div>
-                    <span className={cn(
-                      "text-[11px] font-black px-3 py-1.5 rounded-lg shrink-0",
-                      isExc ? "bg-emerald-100 text-emerald-700" : isVG ? "bg-blue-100 text-blue-700" : isGood ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
-                    )}>
+                    <span
+                      className={cn(
+                        "text-[11px] font-black px-3 py-1.5 rounded-lg shrink-0",
+                        isExc
+                          ? "bg-emerald-100 text-emerald-700"
+                          : isVG
+                            ? "bg-blue-100 text-blue-700"
+                            : isGood
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-rose-100 text-rose-700"
+                      )}
+                    >
                       {isExc ? "ممتاز" : isVG ? "جيد جداً" : isGood ? "جيد" : "يحتاج متابعة"}
                     </span>
                   </div>
@@ -451,7 +530,13 @@ export default function ParentPortalPage({ params }: ParentPortalPageProps) {
                       <div
                         className={cn(
                           "h-full rounded-full transition-all",
-                          isExc ? "bg-emerald-500" : isVG ? "bg-blue-500" : isGood ? "bg-amber-500" : "bg-rose-500"
+                          isExc
+                            ? "bg-emerald-500"
+                            : isVG
+                              ? "bg-blue-500"
+                              : isGood
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
                         )}
                         style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                       />

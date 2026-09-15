@@ -1,6 +1,6 @@
-const fs = require('fs');
-const file = 'src/components/shared/attendance-scanner.tsx';
-let content = fs.readFileSync(file, 'utf8');
+const fs = require("fs");
+const file = "src/components/shared/attendance-scanner.tsx";
+let content = fs.readFileSync(file, "utf8");
 
 const returnRegex = /return \([\s\S]*\}\;/;
 const replacement = `return (

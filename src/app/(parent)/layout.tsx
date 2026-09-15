@@ -4,8 +4,10 @@ import Image from "next/image";
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
   return (
     // 1. استخدام 100dvh لثبات الشاشة على الموبايل
-    <div className="min-h-[100dvh] bg-background text-text flex flex-col justify-between font-cairo selection:bg-secondary" dir="rtl">
-      
+    <div
+      className="min-h-[100dvh] bg-background text-text flex flex-col justify-between font-cairo selection:bg-secondary"
+      dir="rtl"
+    >
       {/* Header */}
       {/* 2. استخدام bg-surface صريح بدون شفافية لضمان عدم تداخل المحتوى تحته بشكل مزعج، مع ظل خفيف (Flat UI) */}
       <header className="sticky top-0 z-40 flex w-full flex-col bg-surface pt-[env(safe-area-inset-top)] shadow-sm">
@@ -31,15 +33,13 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
             </span>
           </div>
         </div>
-        
+
         {/* 4. الفاصل الناعم تم التخلص فيه من الشفافية المفرطة */}
         <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border to-transparent" />
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-md mx-auto p-4 sm:p-6 pb-20">
-        {children}
-      </main>
+      <main className="flex-1 w-full max-w-md mx-auto p-4 sm:p-6 pb-20">{children}</main>
 
       {/* Footer */}
       {/* 5. استخدام text-text و text-muted صريحة بدون opacity */}

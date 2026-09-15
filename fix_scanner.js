@@ -1,8 +1,8 @@
-const fs = require('fs');
-const file = 'src/components/shared/attendance-scanner.tsx';
+const fs = require("fs");
+const file = "src/components/shared/attendance-scanner.tsx";
 
-let content = fs.readFileSync(file, 'utf8');
-const lines = content.split('\n');
+let content = fs.readFileSync(file, "utf8");
+const lines = content.split("\n");
 
 // Find the line where 'checkCameras();' is called inside 'if (mode === "camera")'
 let cutIndex = -1;
@@ -18,7 +18,7 @@ if (cutIndex === -1) {
   process.exit(1);
 }
 
-const header = lines.slice(0, cutIndex).join('\n');
+const header = lines.slice(0, cutIndex).join("\n");
 
 const body = `
     return () => {
@@ -378,4 +378,4 @@ const body = `
 }
 `;
 
-fs.writeFileSync(file, header + '\n' + body);
+fs.writeFileSync(file, header + "\n" + body);
