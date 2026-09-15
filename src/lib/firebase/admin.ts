@@ -34,17 +34,17 @@ function initAdminApp(): App | null {
     return getApps()[0] as App;
   }
 
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const rawPrivateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+  const rawPrivateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !rawPrivateKey) {
     // Return null in development/build environments if env vars are not yet set
     return null;
   }
 
-  // Handle newline characters in the RSA private key string
-  const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
+  // Handle newline characters and strip quotes in the RSA private key string
+  const privateKey = rawPrivateKey.replace(/\\n/g, "\n").replace(/^"|"$/g, "");
 
   return initializeApp({
     credential: cert({
