@@ -3,9 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createStudent } from "@/lib/actions/students";
+import { createStudentClient } from "@/lib/client-actions/students";
 import { getClassesForSelect, getGroups } from "@/lib/actions/groups";
 import type { StudentFormData } from "@/lib/validators/student";
+import { useQueryClient } from "@tanstack/react-query";
 import { StudentForm } from "../student-form";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -13,6 +14,7 @@ import { ArrowRight, UserPlus, AlertCircle, PlusCircle } from "lucide-react";
 
 export default function CreateStudentPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [classes, setClasses] = React.useState<Array<{ id: string; name: string }>>([]);
   const [groups, setGroups] = React.useState<
     Array<{ id: string; name: string; classId: string; price: number }>
@@ -45,13 +47,15 @@ export default function CreateStudentPage() {
   const handleSubmit = async (data: StudentFormData) => {
     setIsSubmitting(true);
     try {
-      const res = await createStudent(data);
+      const res = await createStudentClient(data);
       if (!res.success) {
         toast.error(res.error || "تعذر إضافة الطالب");
         return;
       }
 
       toast.success("تم تسجيل الطالب وتوليد أكواد الـ QR بنجاح");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       router.push("/students");
       router.refresh();
     } catch {

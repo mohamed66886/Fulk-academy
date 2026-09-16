@@ -165,20 +165,33 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const lastAttendance = attendanceRecords.length > 0 ? attendanceRecords[0] : null;
 
     // 5. Calculate Payments (without sensitive internals)
-    const payments = paymentsSnap.docs.map((doc) => {
+    const paymentsMap = new Map<string, any>();
+    paymentsSnap.docs.forEach((doc) => {
       const d = doc.data();
+      const month = (d.month as string) || "";
+      if (!month) return;
+
       const status = (d.status as "paid" | "partial" | "unpaid") || "unpaid";
       const required = Number(d.required ?? d.groupPrice) || 0;
       const paid = Number(d.paid) || 0;
       const remaining = Math.max(0, required - paid);
 
-      return {
+      const paymentRecord = {
         id: doc.id,
-        month: (d.month as string) || "",
+        month,
         status,
         remaining: status === "partial" ? remaining : 0,
       };
+
+      const expectedId = `${month}_${studentId}`;
+      if (doc.id === expectedId) {
+        paymentsMap.set(month, paymentRecord);
+      } else if (!paymentsMap.has(month)) {
+        paymentsMap.set(month, paymentRecord);
+      }
     });
+
+    const payments = Array.from(paymentsMap.values());
 
     // Sort payments descending by month
     payments.sort((a, b) => b.month.localeCompare(a.month));
@@ -187,6 +200,8 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const examInfoMap = new Map<string, { name: string; date: string; maxGrade: number }>();
     examsSnap.docs.forEach((d) => {
       const ex = d.data();
+      if (ex.deletedAt != null || ex.isDeleted) return;
+      
       examInfoMap.set(d.id, {
         name: (ex.name as string) || "امتحان",
         date: (ex.examDate as string) || "",
@@ -194,23 +209,27 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       });
     });
 
-    const exams = examResultsSnap.docs.map((doc) => {
-      const r = doc.data();
-      const examInfo = r.examId ? examInfoMap.get(r.examId as string) : undefined;
-      const finalGrade = examInfo?.maxGrade || Number(r.finalGrade) || 100;
-      const grade = Number(r.grade) || 0;
-      const percentage =
-        Number(r.percentage) || (finalGrade > 0 ? Math.round((grade / finalGrade) * 100) : 0);
+    const exams = examResultsSnap.docs
+      .map((doc) => {
+        const r = doc.data();
+        const examInfo = r.examId ? examInfoMap.get(r.examId as string) : undefined;
+        if (!examInfo) return null;
 
-      return {
-        id: doc.id,
-        examName: examInfo?.name || (r.examName as string) || "امتحان دوري",
-        examDate: examInfo?.date || (r.date as string) || "",
-        grade,
-        finalGrade,
-        percentage,
-      };
-    });
+        const finalGrade = examInfo.maxGrade || Number(r.finalGrade) || 100;
+        const grade = Number(r.grade) || 0;
+        const percentage =
+          Number(r.percentage) || (finalGrade > 0 ? Math.round((grade / finalGrade) * 100) : 0);
+
+        return {
+          id: doc.id,
+          examName: examInfo.name || (r.examName as string) || "امتحان دوري",
+          examDate: examInfo.date || (r.date as string) || "",
+          grade,
+          finalGrade,
+          percentage,
+        };
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null);
 
     // Sort exams descending by date
     exams.sort((a, b) => b.examDate.localeCompare(a.examDate));

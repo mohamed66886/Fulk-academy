@@ -22,7 +22,7 @@ async function getTeacherAuthContext() {
 
   if (sessionCookie) {
     try {
-      const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+      const decoded = await adminAuth.verifySessionCookie(sessionCookie, false);
       actorId = decoded.uid;
       actorRole = (decoded.role as string) || "teacher";
       teacherId = (decoded.teacherId as string) || decoded.uid;

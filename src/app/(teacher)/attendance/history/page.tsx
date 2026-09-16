@@ -20,6 +20,8 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { formatArabicTime } from "@/lib/utils/date";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format } from "date-fns";
 import {
   CalendarCheck,
   Calendar,
@@ -35,7 +37,7 @@ import {
 export default function AttendanceHistoryPage() {
   // Filters
   const [selectedGroupId, setSelectedGroupId] = React.useState("");
-  const [selectedDate, setSelectedDate] = React.useState("");
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
 
@@ -45,7 +47,7 @@ export default function AttendanceHistoryPage() {
       page: currentPage,
       pageSize,
       groupId: selectedGroupId || undefined,
-      date: selectedDate || undefined,
+      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined,
     }),
     [currentPage, pageSize, selectedGroupId, selectedDate]
   );
@@ -59,7 +61,7 @@ export default function AttendanceHistoryPage() {
 
   const handleResetFilters = () => {
     setSelectedGroupId("");
-    setSelectedDate("");
+    setSelectedDate(undefined);
     setCurrentPage(1);
   };
 
@@ -167,14 +169,13 @@ export default function AttendanceHistoryPage() {
                 <Calendar className="h-3.5 w-3.5 text-muted" />
                 تصفية بالتاريخ
               </label>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
+              <DatePicker
+                date={selectedDate}
+                setDate={(date) => {
+                  setSelectedDate(date);
                   setCurrentPage(1);
                 }}
-                className="font-mono text-xs"
+                placeholder="جميع التواريخ"
               />
             </div>
 

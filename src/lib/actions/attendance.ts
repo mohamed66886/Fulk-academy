@@ -995,7 +995,7 @@ export async function getAttendanceSessionDetails(sessionId: string): Promise<{
       const studentsSnap = await teacherRef
         .collection("students")
         .where("groupId", "==", groupId)
-        .where("isDeleted", "!=", true)
+        .where("deletedAt", "==", null)
         .get();
 
       registeredTotal = studentsSnap.size;

@@ -3,9 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudents, useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
-import { deleteStudent, toggleStudentBlock, type StudentListItem } from "@/lib/actions/students";
+import { type StudentListItem } from "@/lib/actions/students";
+import { deleteStudentClient, toggleStudentBlockClient } from "@/lib/client-actions/students";
 import {
   Table,
   TableHeader,
@@ -38,10 +40,16 @@ import {
   Clock3,
   Ban,
   ShieldCheck,
+  IdCard,
+  Printer,
 } from "lucide-react";
 
 export default function StudentsListPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+
+  // Multi-select for Card Printing & Bulk Actions
+  const [selectedStudentIds, setSelectedStudentIds] = React.useState<Set<string>>(new Set());
 
   // Filters & Search
   const [rawSearch, setRawSearch] = React.useState("");
@@ -113,12 +121,51 @@ export default function StudentsListPage() {
   const students = studentsRes?.success && studentsRes.students ? studentsRes.students : [];
   const totalCount = studentsRes?.success && studentsRes.totalCount ? studentsRes.totalCount : 0;
 
+  // Selection handlers
+  const currentPageIds = React.useMemo(() => students.map((s) => s.id), [students]);
+  const isAllCurrentPageSelected =
+    currentPageIds.length > 0 && currentPageIds.every((id) => selectedStudentIds.has(id));
+
+  const toggleSelectStudent = (id: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllCurrentPage = () => {
+    if (isAllCurrentPageSelected) {
+      setSelectedStudentIds((prev) => {
+        const next = new Set(prev);
+        currentPageIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedStudentIds((prev) => {
+        const next = new Set(prev);
+        currentPageIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handlePrintSelectedCards = () => {
+    if (selectedStudentIds.size === 0) return;
+    const idsArray = Array.from(selectedStudentIds);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("selectedStudentIdsForPrint", JSON.stringify(idsArray));
+    }
+    router.push(`/students/print-cards?ids=${idsArray.join(",")}`);
+  };
+
   // Handle Soft Delete
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      const res = await deleteStudent(deleteTarget.id);
+      const res = await deleteStudentClient(deleteTarget.id);
       if (!res.success) {
         toast.error(res.error || "فشل حذف الطالب");
         return;
@@ -138,7 +185,7 @@ export default function StudentsListPage() {
     if (!blockTarget) return;
     setIsTogglingBlock(true);
     try {
-      const res = await toggleStudentBlock(blockTarget.id);
+      const res = await toggleStudentBlockClient(blockTarget.id);
       if (!res.success) {
         toast.error(res.error || "فشل تغيير حالة الطالب");
         return;
@@ -186,12 +233,27 @@ export default function StudentsListPage() {
           </p>
         </div>
 
-        <Link href="/students/create">
-          <Button size="md" className="gap-2 font-bold shadow-sm">
-            <Plus className="h-4 w-4" />
-            <span>إضافة طالب جديد</span>
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={
+              classFilter !== "all" || groupFilter !== "all"
+                ? `/students/print-cards?classId=${classFilter}&groupId=${groupFilter}`
+                : "/students/print-cards"
+            }
+          >
+            <Button variant="outline" size="md" className="gap-2 font-bold shadow-xs">
+              <IdCard className="h-4 w-4 text-primary" />
+              <span>استوديو طباعة الكروت (A4)</span>
+            </Button>
+          </Link>
+
+          <Link href="/students/create">
+            <Button size="md" className="gap-2 font-bold shadow-sm">
+              <Plus className="h-4 w-4" />
+              <span>إضافة طالب جديد</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Search & Filter Toolbar */}
@@ -317,6 +379,15 @@ export default function StudentsListPage() {
         <Table stickyHeader>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={isAllCurrentPageSelected}
+                  onChange={toggleSelectAllCurrentPage}
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                  title="تحديد كل طلاب الصفحة الحالية"
+                />
+              </TableHead>
               <TableHead>الطالب</TableHead>
               <TableHead>الصف الدراسي</TableHead>
               <TableHead>المجموعة</TableHead>
@@ -328,10 +399,10 @@ export default function StudentsListPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeleton rows={6} cols={7} />
+              <TableSkeleton rows={6} cols={8} />
             ) : students.length === 0 ? (
               <TableEmpty
-                colSpan={7}
+                colSpan={8}
                 icon={<Users className="h-10 w-10 text-muted stroke-[1.5]" />}
                 title="لا يوجد طلاب مسجلون"
                 description={
@@ -342,7 +413,20 @@ export default function StudentsListPage() {
               />
             ) : (
               students.map((student) => (
-                <TableRow key={student.id}>
+                <TableRow
+                  key={student.id}
+                  data-state={selectedStudentIds.has(student.id) ? "selected" : undefined}
+                >
+                  {/* Row Checkbox */}
+                  <TableCell className="text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentIds.has(student.id)}
+                      onChange={() => toggleSelectStudent(student.id)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      title="تحديد الطالب للطباعة"
+                    />
+                  </TableCell>
                   {/* Student Avatar & Name */}
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -446,6 +530,17 @@ export default function StudentsListPage() {
                           title="عرض بروفايل الطالب"
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+                      </Link>
+
+                      <Link href={`/students/print-cards?ids=${student.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted hover:text-primary"
+                          title="طباعة كارت الطالب الذكي (وش وضهر)"
+                        >
+                          <IdCard className="h-4 w-4" />
                         </Button>
                       </Link>
 
@@ -587,6 +682,45 @@ export default function StudentsListPage() {
           </div>
         </div>
       </Modal>
+      {/* Floating Bottom Action Bar for Selected Students */}
+      {selectedStudentIds.size > 0 && (
+        <aside
+          role="region"
+          aria-label="إجراءات الطلاب المحددين"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface/95 backdrop-blur-md border border-primary/40 shadow-2xl rounded-2xl p-3 px-5 flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-bottom-5 duration-200"
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs">
+              {selectedStudentIds.size}
+            </div>
+            <span className="text-xs font-bold text-text">
+              طالب تم تحديده
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handlePrintSelectedCards}
+              className="gap-2 font-black bg-primary hover:bg-primary/95 text-xs shadow-md rounded-xl px-4"
+            >
+              <Printer className="h-4 w-4" />
+              <span>طباعة الكروت (وش وضهر)</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedStudentIds(new Set())}
+              className="h-8 px-2.5 text-xs text-muted hover:text-text rounded-xl"
+            >
+              <span>إلغاء التحديد</span>
+            </Button>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

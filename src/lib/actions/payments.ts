@@ -67,7 +67,7 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
       async () => {
         // 1. Fetch active groups and students
         const [groupsSnap, studentsSnap] = await Promise.all([
-          teacherRef.collection("groups").where("isDeleted", "!=", true).get(),
+          teacherRef.collection("groups").where("deletedAt", "==", null).get(),
           teacherRef.collection("students").where("deletedAt", "==", null).get(),
         ]);
 
@@ -101,7 +101,12 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
           const data = d.data();
           const sId = (data.studentId as string) || "";
           if (sId) {
-            paymentMap.set(sId, { ...data, id: d.id });
+            const expectedId = `${month}_${sId}`;
+            if (d.id === expectedId) {
+              paymentMap.set(sId, { ...data, id: d.id });
+            } else if (!paymentMap.has(sId)) {
+              paymentMap.set(sId, { ...data, id: d.id });
+            }
           }
         });
 
@@ -127,12 +132,10 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
               className: "",
               price: 0,
             };
-            const finalPrice =
-              s.customPrice !== undefined && s.customPrice !== null
-                ? Number(s.customPrice)
-                : groupInfo.price;
+            const discount = Number(s.discount) || 0;
+            const finalPrice = Math.max(0, groupInfo.price - discount);
 
-            const newPaymentRef = teacherRef.collection("payments").doc();
+            const newPaymentRef = teacherRef.collection("payments").doc(`${month}_${s.id}`);
             const newDocData = {
               id: newPaymentRef.id,
               teacherId: s.teacherId || "",
@@ -180,14 +183,18 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
 
           const groupPrice = Number(groupInfo?.price) || 0;
           const discount = Number(s.discount) || 0;
-          const defaultPrice =
-            s.customPrice !== undefined && s.customPrice !== null
-              ? Number(s.customPrice)
-              : groupInfo?.price || 0;
+          const defaultPrice = Math.max(0, groupPrice - discount);
 
-          const required = payment ? Number(payment.required) || 0 : defaultPrice;
+          let required = payment ? Number(payment.required) || 0 : defaultPrice;
+          let remaining = payment ? Number(payment.remaining) || 0 : required;
+          
+          // Fix for previously broken auto-generated payments with required=0
+          if (required === 0 && defaultPrice > 0 && Number(payment?.paid || 0) === 0) {
+            required = defaultPrice;
+            remaining = defaultPrice;
+          }
+
           const paid = payment ? Number(payment.paid) || 0 : 0;
-          const remaining = payment ? Number(payment.remaining) || 0 : required;
           const status = (payment?.status as PaymentStatus) || "unpaid";
 
           totalRequired += required;
@@ -398,7 +405,10 @@ export async function updatePayment({
         status = "paid";
       }
 
-      // 5. Build payment payload and save
+      // 5. Read Monthly Aggregation Document BEFORE writing
+      const aggDoc = await transaction.get(aggRef);
+      
+      // 6. Build payment payload and save
       const paymentPayload = {
         id: paymentDocId,
         studentId,
@@ -423,8 +433,7 @@ export async function updatePayment({
 
       transaction.set(paymentRef, paymentPayload, { merge: true });
 
-      // 6. Update Monthly Aggregation Document Atomically
-      const aggDoc = await transaction.get(aggRef);
+      // 7. Update Monthly Aggregation Document Atomically
       let aggTotalStudents = 0;
       let aggPaidCount = 0;
       let aggPartialCount = 0;

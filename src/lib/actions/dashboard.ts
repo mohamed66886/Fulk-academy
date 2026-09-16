@@ -48,7 +48,7 @@ export async function getTeacherDashboardData(): Promise<{
 
     if (sessionCookie) {
       try {
-        const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+        const decoded = await adminAuth.verifySessionCookie(sessionCookie, false);
         teacherId = (decoded.teacherId as string) || decoded.uid;
         teacherName = (decoded.name as string) || "المدرس";
       } catch {

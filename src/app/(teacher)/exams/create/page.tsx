@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format } from "date-fns";
 import { ClipboardList, ArrowRight, Check, Calendar, Layers, Award, BookOpen } from "lucide-react";
 
 export default function CreateExamPage() {
@@ -25,9 +27,7 @@ export default function CreateExamPage() {
   const [classId, setClassId] = React.useState("");
   const [groupId, setGroupId] = React.useState("");
   const [finalGrade, setFinalGrade] = React.useState("100");
-  const [examDate, setExamDate] = React.useState(() => {
-    return new Date().toISOString().split("T")[0];
-  });
+  const [examDate, setExamDate] = React.useState<Date | undefined>(new Date());
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Load Classes & Groups
@@ -97,7 +97,7 @@ export default function CreateExamPage() {
         classId,
         groupId,
         finalGrade: numGrade,
-        examDate,
+        examDate: format(examDate, "yyyy-MM-dd"),
       });
 
       if (!res.success || !res.examId) {
@@ -249,12 +249,9 @@ export default function CreateExamPage() {
                   <Calendar className="h-3.5 w-3.5 text-muted" />
                   تاريخ إجراء الامتحان <span className="text-danger">*</span>
                 </label>
-                <Input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  required
-                  className="font-mono text-sm"
+                <DatePicker
+                  date={examDate}
+                  setDate={setExamDate}
                 />
               </div>
             </div>

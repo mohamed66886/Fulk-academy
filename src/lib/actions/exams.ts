@@ -24,8 +24,8 @@ export async function getClassesAndGroupsForExams(): Promise<{
       60,
       async () => {
         const [classesSnap, groupsSnap] = await Promise.all([
-          teacherRef.collection("classes").where("isDeleted", "!=", true).get(),
-          teacherRef.collection("groups").where("isDeleted", "!=", true).get(),
+          teacherRef.collection("classes").where("deletedAt", "==", null).get(),
+          teacherRef.collection("groups").where("deletedAt", "==", null).get(),
         ]);
 
         const classes = classesSnap.docs.map((doc) => ({
@@ -90,7 +90,7 @@ export async function getExams(filters: GetExamsFilters = {}): Promise<{
       30,
       async () => {
         // 1. Base query on exams
-        let examsQuery = teacherRef.collection("exams").where("isDeleted", "!=", true);
+        let examsQuery = teacherRef.collection("exams").where("deletedAt", "==", null);
 
         if (filters.classId) {
           examsQuery = examsQuery.where("classId", "==", filters.classId);
@@ -301,7 +301,7 @@ export async function createExam(rawData: ExamFormData): Promise<{
       groupName,
       finalGrade: data.finalGrade,
       examDate: data.examDate,
-      isDeleted: false,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now,
       createdBy: actorId,
@@ -526,7 +526,7 @@ export async function getExamGrades(examId: string): Promise<{
 
     // 1. Fetch Exam
     const examDoc = await teacherRef.collection("exams").doc(examId).get();
-    if (!examDoc.exists || examDoc.data()?.isDeleted) {
+    if (!examDoc.exists || examDoc.data()?.deletedAt != null) {
       return { success: false, error: "الامتحان غير موجود" };
     }
 
@@ -548,7 +548,7 @@ export async function getExamGrades(examId: string): Promise<{
     const studentsSnap = await teacherRef
       .collection("students")
       .where("groupId", "==", groupId)
-      .where("isDeleted", "!=", true)
+      .where("deletedAt", "==", null)
       .get();
 
     // 4. Fetch existing Exam Results
@@ -641,7 +641,7 @@ export async function bulkSaveExamGrades({
 
     // 1. Fetch Exam to obtain finalGrade
     const examDoc = await teacherRef.collection("exams").doc(examId).get();
-    if (!examDoc.exists || examDoc.data()?.isDeleted) {
+    if (!examDoc.exists || examDoc.data()?.deletedAt != null) {
       return { success: false, message: "الامتحان غير موجود", error: "الامتحان غير موجود" };
     }
 

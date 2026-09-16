@@ -35,12 +35,21 @@ export default function CardsPage() {
           </div>
         </div>
 
-        <Link href="/students">
-          <Button className="gap-2 font-bold shadow-sm">
-            <Users className="h-4 w-4" />
-            <span>عرض قائمة الطلاب وطباعة الكروت</span>
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/students/print-cards">
+            <Button size="md" className="gap-2 font-bold shadow-sm bg-primary hover:bg-primary/95">
+              <Printer className="h-4 w-4" />
+              <span>استوديو طباعة الكروت (A4)</span>
+            </Button>
+          </Link>
+
+          <Link href="/students">
+            <Button variant="outline" size="md" className="gap-2 font-bold">
+              <Users className="h-4 w-4" />
+              <span>تحديد وطباعة الطلاب</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Two Systems Explained (Barcode vs QR) */}

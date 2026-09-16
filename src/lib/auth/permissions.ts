@@ -45,7 +45,7 @@ export async function getTeacherAuthContext(): Promise<TeacherAuthContext> {
 
   if (sessionCookie) {
     try {
-      const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+      const decoded = await adminAuth.verifySessionCookie(sessionCookie, false);
       actorId = decoded.uid;
       actorRole = (decoded.role as "teacher" | "assistant" | "super_admin") || "teacher";
       teacherId = (decoded.teacherId as string) || decoded.uid;

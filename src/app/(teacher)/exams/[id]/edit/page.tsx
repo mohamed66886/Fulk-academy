@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format, parseISO } from "date-fns";
 import {
   ClipboardList,
   ArrowRight,
@@ -43,7 +45,7 @@ export default function EditExamPage() {
   const [classId, setClassId] = React.useState("");
   const [groupId, setGroupId] = React.useState("");
   const [finalGrade, setFinalGrade] = React.useState("100");
-  const [examDate, setExamDate] = React.useState("");
+  const [examDate, setExamDate] = React.useState<Date | undefined>(undefined);
   const [originalExam, setOriginalExam] = React.useState<ExamListItem | null>(null);
 
   // Load Exam Data and Filters
@@ -69,7 +71,7 @@ export default function EditExamPage() {
           setClassId(ex.classId);
           setGroupId(ex.groupId);
           setFinalGrade(String(ex.finalGrade));
-          setExamDate(ex.examDate);
+          setExamDate(ex.examDate ? parseISO(ex.examDate) : new Date());
         } else {
           toast.error(examRes.error || "تعذر العثور على الامتحان");
         }
@@ -121,7 +123,7 @@ export default function EditExamPage() {
         classId,
         groupId,
         finalGrade: numGrade,
-        examDate,
+        examDate: examDate ? format(examDate, "yyyy-MM-dd") : "",
       });
 
       if (!res.success) {
@@ -289,12 +291,9 @@ export default function EditExamPage() {
                   <Calendar className="h-3.5 w-3.5 text-muted" />
                   تاريخ إجراء الامتحان <span className="text-danger">*</span>
                 </label>
-                <Input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  required
-                  className="font-mono text-sm"
+                <DatePicker
+                  date={examDate}
+                  setDate={setExamDate}
                 />
               </div>
             </div>

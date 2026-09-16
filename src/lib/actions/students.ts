@@ -21,6 +21,8 @@ export interface StudentListItem {
   parentName: string;
   parentPhone: string;
   photoUrl?: string;
+  qrToken?: string;
+  parentQrToken?: string;
   status: StudentStatus;
   paymentStatus: "paid" | "partial" | "unpaid";
   finalPrice: number;
@@ -230,6 +232,8 @@ export async function getStudents(
           parentName: (data.parentName as string) || "",
           parentPhone: (data.parentPhone as string) || "",
           photoUrl: data.photoUrl as string | undefined,
+          qrToken: (data.qrToken as string) || "",
+          parentQrToken: (data.parentQrToken as string) || "",
           status: (data.status as StudentStatus) || "active",
           paymentStatus: paymentMap.get(doc.id) || "unpaid",
           finalPrice: Number(data.finalPrice) || 0,
@@ -248,6 +252,7 @@ export async function getStudents(
       };
     });
   } catch (error) {
+    console.error("GET_STUDENTS_ERROR:", error);
     return {
       success: false,
       students: [],
@@ -1012,3 +1017,132 @@ export async function getStudentExams(studentId: string): Promise<{
     };
   }
 }
+
+// ─── Bulk Student Cards Fetching for Printing ──────────────────────────
+export interface StudentCardData {
+  id: string;
+  name: string;
+  phone: string;
+  className: string;
+  groupName: string;
+  parentName: string;
+  parentPhone: string;
+  photoUrl?: string;
+  qrToken: string;
+  parentQrToken: string;
+  status: StudentStatus;
+}
+
+export async function getStudentsCardsData(options: {
+  studentIds?: string[];
+  classId?: string;
+  groupId?: string;
+}): Promise<{
+  success: boolean;
+  students: StudentCardData[];
+  teacher?: {
+    name: string;
+    phone: string;
+    signatureUrl?: string;
+  };
+  error?: string;
+}> {
+  try {
+    const { teacherRef } = await checkPermission("students", "view");
+
+    // 1. Fetch teacher details for cards footer / signature
+    const teacherDoc = await teacherRef.get();
+    const teacherData = teacherDoc.data() || {};
+    const teacher = {
+      name: (teacherData.name as string) || "الأستاذ",
+      phone: (teacherData.phone as string) || "",
+      signatureUrl: (teacherData.signatureUrl as string) || undefined,
+    };
+
+    // 2. Fetch class and group maps for accurate names
+    const [classesSnap, groupsSnap] = await Promise.all([
+      teacherRef.collection("classes").where("deletedAt", "==", null).get(),
+      teacherRef.collection("groups").where("deletedAt", "==", null).get(),
+    ]);
+
+    const classMap = new Map<string, string>();
+    classesSnap.docs.forEach((d) => classMap.set(d.id, (d.data().name as string) || "—"));
+
+    const groupMap = new Map<string, string>();
+    groupsSnap.docs.forEach((d) => groupMap.set(d.id, (d.data().name as string) || "—"));
+
+    let students: StudentCardData[] = [];
+
+    // 3. Fetch students based on provided options
+    if (options.studentIds && options.studentIds.length > 0) {
+      const docPromises = options.studentIds.map((id) =>
+        teacherRef.collection("students").doc(id).get()
+      );
+      const studentDocs = await Promise.all(docPromises);
+
+      students = studentDocs
+        .filter((doc) => doc.exists && !doc.data()?.deletedAt)
+        .map((doc) => {
+          const d = doc.data()!;
+          return {
+            id: doc.id,
+            name: (d.name as string) || "",
+            phone: (d.phone as string) || "",
+            className: classMap.get(d.classId) || "—",
+            groupName: groupMap.get(d.groupId) || "—",
+            parentName: (d.parentName as string) || "",
+            parentPhone: (d.parentPhone as string) || "",
+            photoUrl: d.photoUrl as string | undefined,
+            qrToken: (d.qrToken as string) || "",
+            parentQrToken: (d.parentQrToken as string) || "",
+            status: (d.status as StudentStatus) || "active",
+          };
+        });
+    } else {
+      let query: FirebaseFirestore.Query = teacherRef
+        .collection("students")
+        .where("deletedAt", "==", null);
+
+      if (options.classId && options.classId !== "all") {
+        query = query.where("classId", "==", options.classId);
+      }
+      if (options.groupId && options.groupId !== "all") {
+        query = query.where("groupId", "==", options.groupId);
+      }
+
+      const snap = await query.get();
+      students = snap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: (d.name as string) || "",
+          phone: (d.phone as string) || "",
+          className: classMap.get(d.classId) || "—",
+          groupName: groupMap.get(d.groupId) || "—",
+          parentName: (d.parentName as string) || "",
+          parentPhone: (d.parentPhone as string) || "",
+          photoUrl: d.photoUrl as string | undefined,
+          qrToken: (d.qrToken as string) || "",
+          parentQrToken: (d.parentQrToken as string) || "",
+          status: (d.status as StudentStatus) || "active",
+        };
+      });
+    }
+
+    // Sort by name alphabetically (Arabic locale)
+    students.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+    return {
+      success: true,
+      students,
+      teacher,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      students: [],
+      error: error instanceof Error ? error.message : "فشل جلب بيانات كروت الطلاب",
+    };
+  }
+}
+

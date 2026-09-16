@@ -8,9 +8,11 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
-import { getStudents, type StudentsQueryParams } from "@/lib/actions/students";
+import { type StudentsQueryParams } from "@/lib/actions/students";
+import { getStudentsClient } from "@/lib/client-actions/students";
 import { getClasses } from "@/lib/actions/classes";
-import { getGroups, getClassesForSelect } from "@/lib/actions/groups";
+import { getClassesForSelectClient } from "@/lib/client-actions/classes";
+import { getGroupsClient } from "@/lib/client-actions/groups";
 import { getExams, getClassesAndGroupsForExams, type GetExamsFilters } from "@/lib/actions/exams";
 import { getMonthPayments, type GetMonthPaymentsFilters } from "@/lib/actions/payments";
 import { getAttendanceHistory, type AttendanceHistoryFilters } from "@/lib/actions/attendance";
@@ -44,7 +46,7 @@ export function useDashboard() {
 export function useStudents(params?: StudentsQueryParams) {
   return useQuery({
     queryKey: queryKeys.students(params),
-    queryFn: () => getStudents(params),
+    queryFn: () => getStudentsClient(params),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     placeholderData: keepPreviousData,
@@ -64,7 +66,7 @@ export function useClasses() {
 export function useClassesForSelect() {
   return useQuery({
     queryKey: queryKeys.classesForSelect(),
-    queryFn: () => getClassesForSelect(),
+    queryFn: () => getClassesForSelectClient(),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -74,7 +76,7 @@ export function useClassesForSelect() {
 export function useGroups(classIdFilter?: string) {
   return useQuery({
     queryKey: queryKeys.groups(classIdFilter),
-    queryFn: () => getGroups(classIdFilter),
+    queryFn: () => getGroupsClient(classIdFilter),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });

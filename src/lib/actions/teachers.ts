@@ -18,7 +18,7 @@ async function verifySuperAdminCaller() {
     throw new Error("يجب تسجيل الدخول كمسؤول عام لتنفيذ هذا الإجراء");
   }
 
-  const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+  const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, false);
   if (decodedClaims.role !== "super_admin") {
     throw new Error("غير مصرح لك بتنفيذ هذه العملية. صلاحية المسؤول العام مطلوبة.");
   }
