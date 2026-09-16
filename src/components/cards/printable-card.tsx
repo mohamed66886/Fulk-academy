@@ -20,15 +20,15 @@ export interface CardDimensions {
 }
 
 export const CARD_SIZES: Record<CardSizePreset, CardDimensions> = {
-  // Large option (Default): 96mm × 62mm (visibly larger, fills A4 with comfortable margins)
+  // Primary option: 94.5mm × 64.5mm (9.45 cm × 6.45 cm) - Exact requested rectangular cut size
   large: {
-    widthMm: 96,
-    heightMm: 62,
-    colGapMm: 6.0,
-    rowGapMm: 5.5,
-    padLeftRightMm: 6.0, // (210 - (96*2 + 6)) / 2 = 6mm
-    padTopBottomMm: 15.5, // (296 - (62*4 + 5.5*3)) / 2 = 15.75mm
-    label: "كبير (96 × 62 مم - موصى به ويملأ الورقة)",
+    widthMm: 94.5,
+    heightMm: 64.5,
+    colGapMm: 7.0,
+    rowGapMm: 6.0,
+    padLeftRightMm: 7.0, // (210 - (94.5*2 + 7)) / 2 = 7.0mm
+    padTopBottomMm: 10.0, // (296 - (64.5*4 + 6*3)) / 2 = 10.0mm
+    label: "مستطيل القص المعتمد (9.45 × 6.45 سم - موصى به)",
   },
   // Extra Large option: 98mm × 63mm (maximum feasible size for 4 rows)
   "extra-large": {
@@ -101,8 +101,8 @@ export function StudentCardFront({
         maxWidth: `${dims.widthMm}mm`,
         maxHeight: `${dims.heightMm}mm`,
         boxSizing: "border-box",
-        border: showCutGuides ? "0.35pt dashed #cbd5e1" : "none",
-        borderRadius: "3.5mm",
+        border: showCutGuides ? "1px dashed #334155" : "1px solid transparent",
+        borderRadius: "0px",
       }}
       dir="ltr"
     >
@@ -216,7 +216,7 @@ export function StudentCardFront({
             }`}
           >
             <span className="font-mono tracking-tight" dir="ltr">
-              ID: {student.qrToken ? student.qrToken.slice(0, 16) : "—"}
+              ID: {student.qrToken || "—"}
             </span>
             <span className="font-mono tracking-tight" dir="ltr">
               Tel: {teacher?.phone || "—"}
@@ -252,8 +252,8 @@ export function StudentCardBack({
         maxWidth: `${dims.widthMm}mm`,
         maxHeight: `${dims.heightMm}mm`,
         boxSizing: "border-box",
-        border: showCutGuides ? "0.35pt dashed #cbd5e1" : "none",
-        borderRadius: "3.5mm",
+        border: showCutGuides ? "1px dashed #334155" : "1px solid transparent",
+        borderRadius: "0px",
       }}
       dir="ltr"
     >
@@ -380,7 +380,7 @@ export function StudentCardBack({
             }`}
           >
             <span className="font-mono tracking-tight" dir="ltr">
-              ID: {student.qrToken ? student.qrToken.slice(0, 16) : "—"}
+              ID: {student.qrToken || "—"}
             </span>
             <span className="font-mono tracking-tight" dir="ltr">
               Tel: {teacher?.phone || "—"}
@@ -415,8 +415,8 @@ export function EmptyCardSlot({
         maxWidth: `${dims.widthMm}mm`,
         maxHeight: `${dims.heightMm}mm`,
         boxSizing: "border-box",
-        border: showCutGuides ? "0.35pt dashed #e2e8f0" : "none",
-        borderRadius: "3.5mm",
+        border: showCutGuides ? "1px dashed #64748b" : "1px solid transparent",
+        borderRadius: "0px",
       }}
     />
   );

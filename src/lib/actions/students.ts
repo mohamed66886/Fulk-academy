@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
 import { studentSchema, type StudentFormData } from "@/lib/validators/student";
 import { normalizeArabic, buildStudentSearchIndex } from "@/lib/utils/search";
+import { generateShortStudentId } from "@/lib/utils/barcode";
 import type { Student, StudentStatus } from "@/types";
 
 import { checkPermission } from "@/lib/auth/permissions";
@@ -377,9 +378,9 @@ export async function createStudent(data: StudentFormData): Promise<{
     const finalPrice = Math.max(0, groupPrice - discount);
 
     // 2. Parallel Token Generation:
-    // qrToken: random unguessable UUID for student attendance
+    // qrToken: short human-friendly 6-char code (3 letters + 3 digits) for wide, clear barcodes
     // parentQrToken: cryptographically random 48-char hex token without any student identifier
-    const qrToken = randomBytes(3).toString("hex");
+    const qrToken = generateShortStudentId();
     const parentQrToken = `prt_${randomBytes(24).toString("hex")}`;
 
     // 3. Build normalized Arabic search index
@@ -414,19 +415,34 @@ export async function createStudent(data: StudentFormData): Promise<{
     };
 
     const generateUniqueStudentId = async (): Promise<string> => {
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let id = "";
-      for (let i = 0; i < 6; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
+      const id = generateShortStudentId();
       const docSnap = await teacherRef.collection("students").doc(id).get();
       if (docSnap.exists) return generateUniqueStudentId();
       return id;
     };
 
     const studentId = await generateUniqueStudentId();
+    studentPayload.qrToken = studentId;
     const docRef = teacherRef.collection("students").doc(studentId);
     await docRef.set(studentPayload);
+
+    // Write qr token indices
+    try {
+      await teacherRef.firestore.collection("qrIndex").doc(studentId).set({
+        type: "student",
+        studentId: docRef.id,
+        teacherId: teacherId,
+        createdAt: now,
+      });
+      await teacherRef.firestore.collection("qrIndex").doc(parentQrToken).set({
+        type: "parent",
+        studentId: docRef.id,
+        teacherId: teacherId,
+        createdAt: now,
+      });
+    } catch {
+      // non-blocking
+    }
 
     // Audit Log
     try {

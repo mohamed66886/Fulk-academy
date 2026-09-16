@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudents, useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
-import { type StudentListItem } from "@/lib/actions/students";
 import { deleteStudentClient, toggleStudentBlockClient } from "@/lib/client-actions/students";
 import {
   Table,
@@ -23,8 +22,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
-import { Modal } from "@/components/ui/modal";
 import { toast } from "@/components/ui/toast";
+import { SearchFilterCard, FilterField } from "@/components/ui/SearchFilterCard";
+import { InputIcon } from "@/components/ui/InputIcon";
+import { DropdownButton } from "@/components/ui/DropdownButton";
+import { TableActions } from "@/components/ui/TableActions";
 import {
   Users,
   Plus,
@@ -32,7 +34,6 @@ import {
   Eye,
   Edit2,
   Trash2,
-  AlertTriangle,
   Layers,
   ArrowUpDown,
   CheckCircle2,
@@ -42,6 +43,7 @@ import {
   ShieldCheck,
   IdCard,
   Printer,
+  GraduationCap,
 } from "lucide-react";
 
 export default function StudentsListPage() {
@@ -69,7 +71,7 @@ export default function StudentsListPage() {
   // Cached Filter options
   const { data: classesData } = useClassesForSelect();
   const { data: groupsData } = useGroups();
-  const classesList = classesData || [];
+  const classesList = React.useMemo(() => classesData || [], [classesData]);
   const groupsList = React.useMemo(() => {
     if (groupsData?.success && groupsData.groups) {
       return groupsData.groups.map((g) => ({
@@ -80,12 +82,6 @@ export default function StudentsListPage() {
     }
     return [];
   }, [groupsData]);
-
-  // Modals state
-  const [deleteTarget, setDeleteTarget] = React.useState<StudentListItem | null>(null);
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [blockTarget, setBlockTarget] = React.useState<StudentListItem | null>(null);
-  const [isTogglingBlock, setIsTogglingBlock] = React.useState(false);
 
   // Debounce search input (350ms)
   React.useEffect(() => {
@@ -118,7 +114,10 @@ export default function StudentsListPage() {
   );
 
   const { data: studentsRes, isLoading } = useStudents(queryParams);
-  const students = studentsRes?.success && studentsRes.students ? studentsRes.students : [];
+  const students = React.useMemo(
+    () => (studentsRes?.success && studentsRes.students ? studentsRes.students : []),
+    [studentsRes]
+  );
   const totalCount = studentsRes?.success && studentsRes.totalCount ? studentsRes.totalCount : 0;
 
   // Selection handlers
@@ -160,45 +159,39 @@ export default function StudentsListPage() {
     router.push(`/students/print-cards?ids=${idsArray.join(",")}`);
   };
 
-  // Handle Soft Delete
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
+  // Handle Soft Delete with TableActions confirmation
+  const handleDelete = async (studentId: string, studentName: string) => {
     try {
-      const res = await deleteStudentClient(deleteTarget.id);
+      const res = await deleteStudentClient(studentId);
       if (!res.success) {
         toast.error(res.error || "فشل حذف الطالب");
         return;
       }
-      toast.success("تم نقل الطالب إلى سلة المحذوفات بنجاح");
-      setDeleteTarget(null);
+      toast.success(`تم نقل الطالب "${studentName}" إلى سلة المحذوفات بنجاح`);
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     } catch {
-      toast.error("حدث خطأ أثناء الحذف");
-    } finally {
-      setIsDeleting(false);
+      toast.error("حدث خطأ أثناء محاولة الحذف");
     }
   };
 
   // Handle Block / Unblock Toggle
-  const handleToggleBlock = async () => {
-    if (!blockTarget) return;
-    setIsTogglingBlock(true);
+  const handleToggleBlock = async (studentId: string, studentName: string) => {
     try {
-      const res = await toggleStudentBlockClient(blockTarget.id);
+      const res = await toggleStudentBlockClient(studentId);
       if (!res.success) {
         toast.error(res.error || "فشل تغيير حالة الطالب");
         return;
       }
       toast.success(
-        res.newStatus === "blocked" ? "تم حظر الطالب بنجاح" : "تم إلغاء حظر الطالب بنجاح"
+        res.newStatus === "blocked"
+          ? `تم حظر الطالب "${studentName}" بنجاح`
+          : `تم إلغاء حظر الطالب "${studentName}" بنجاح`
       );
-      setBlockTarget(null);
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     } catch {
       toast.error("حدث خطأ أثناء تغيير الحالة");
-    } finally {
-      setIsTogglingBlock(false);
     }
   };
 
@@ -217,60 +210,83 @@ export default function StudentsListPage() {
   const hasNextPage = page < totalPages;
   const hasPrevPage = page > 1;
 
+  const handleResetFilters = () => {
+    setRawSearch("");
+    setDebouncedSearch("");
+    setClassFilter("all");
+    setGroupFilter("all");
+    setStatusFilter("all");
+    setPage(1);
+  };
+
   return (
     <div className="space-y-6 pb-12" dir="rtl">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-extrabold text-text tracking-tight">سجل الطلاب</h1>
-            <Badge variant="primary" size="sm">
-              {totalCount} طالب
-            </Badge>
-          </div>
-          <p className="text-xs text-muted mt-1">
-            إدارة بيانات الطلاب المسجلين، الاشتراكات الشهرية، بطاقات الحضور، ومتابعة أولياء الأمور.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={
-              classFilter !== "all" || groupFilter !== "all"
-                ? `/students/print-cards?classId=${classFilter}&groupId=${groupFilter}`
-                : "/students/print-cards"
-            }
-          >
-            <Button variant="outline" size="md" className="gap-2 font-bold shadow-xs">
-              <IdCard className="h-4 w-4 text-primary" />
-              <span>استوديو طباعة الكروت (A4)</span>
-            </Button>
-          </Link>
-
-          <Link href="/students/create">
-            <Button size="md" className="gap-2 font-bold shadow-sm">
-              <Plus className="h-4 w-4" />
-              <span>إضافة طالب جديد</span>
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Search & Filter Toolbar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Debounced Search */}
-        <div className="relative sm:col-span-2">
+      {/* Unified Search & Filters Card */}
+      <SearchFilterCard
+        title="سجل الطلاب"
+        description="إدارة بيانات الطلاب المسجلين، الاشتراكات الشهرية، بطاقات الحضور، ومتابعة أولياء الأمور."
+        icon={Users}
+        iconColor="text-primary"
+        resultsCount={totalCount}
+        addHref="/students/create"
+        addButtonText="إضافة طالب جديد"
+        onSearch={() => {}}
+        onReset={handleResetFilters}
+        headerActions={
+          <DropdownButton
+            label="إجراءات سريعة"
+            variant="outline"
+            size="md"
+            split={false}
+            items={[
+              {
+                label: "إضافة طالب جديد",
+                icon: <Plus className="w-4 h-4 text-primary" />,
+                onClick: () => router.push("/students/create"),
+              },
+              {
+                label: "استوديو طباعة الكروت (A4)",
+                icon: <IdCard className="w-4 h-4 text-primary" />,
+                onClick: () =>
+                  router.push(
+                    classFilter !== "all" || groupFilter !== "all"
+                      ? `/students/print-cards?classId=${classFilter}&groupId=${groupFilter}`
+                      : "/students/print-cards"
+                  ),
+              },
+              {
+                label: "عرض كافة المجموعات",
+                icon: <Layers className="w-4 h-4 text-slate-500" />,
+                onClick: () => router.push("/groups"),
+              },
+              {
+                label: "عرض كافة الصفوف الدراسية",
+                icon: <GraduationCap className="w-4 h-4 text-slate-500" />,
+                onClick: () => router.push("/classes"),
+              },
+            ]}
+          />
+        }
+      >
+        {/* Search Field */}
+        <FilterField label="البحث السريع">
           <Input
             placeholder="بحث بالاسم، رقم الطالب، أو رقم ولي الأمر..."
             value={rawSearch}
             onChange={(e) => setRawSearch(e.target.value)}
-            className="pl-9 pr-3"
+            clearable
+            onClear={() => {
+              setRawSearch("");
+              setDebouncedSearch("");
+              setPage(1);
+            }}
+            leftIcon={<InputIcon icon={Search} className="text-slate-400" />}
+            sizeVariant="md"
           />
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        </div>
+        </FilterField>
 
         {/* Class Filter */}
-        <div>
+        <FilterField label="الصف الدراسي">
           <Select
             value={classFilter}
             onChange={(e) => {
@@ -278,6 +294,8 @@ export default function StudentsListPage() {
               setGroupFilter("all");
               setPage(1);
             }}
+            searchable={false}
+            sizeVariant="md"
           >
             <option value="all">جميع الصفوف الدراسية</option>
             {classesList.map((cls) => (
@@ -286,16 +304,18 @@ export default function StudentsListPage() {
               </option>
             ))}
           </Select>
-        </div>
+        </FilterField>
 
         {/* Group Filter */}
-        <div>
+        <FilterField label="المجموعة الدراسية">
           <Select
             value={groupFilter}
             onChange={(e) => {
               setGroupFilter(e.target.value);
               setPage(1);
             }}
+            searchable={false}
+            sizeVariant="md"
           >
             <option value="all">جميع المجموعات</option>
             {availableFilterGroups.map((grp) => (
@@ -304,26 +324,28 @@ export default function StudentsListPage() {
               </option>
             ))}
           </Select>
-        </div>
+        </FilterField>
 
         {/* Status Filter */}
-        <div>
+        <FilterField label="حالة الطالب">
           <Select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as "all" | "active" | "blocked");
               setPage(1);
             }}
+            searchable={false}
+            sizeVariant="md"
           >
             <option value="all">جميع الحالات</option>
             <option value="active">الطلاب النشطون</option>
             <option value="blocked">الطلاب المحظورون</option>
           </Select>
-        </div>
-      </div>
+        </FilterField>
+      </SearchFilterCard>
 
       {/* Sort & Page Size Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted px-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-text">ترتيب حسب:</span>
           <Button
@@ -331,7 +353,7 @@ export default function StudentsListPage() {
             variant={sortBy === "name" ? "primary" : "outline"}
             size="sm"
             onClick={() => toggleSort("name")}
-            className="h-8 gap-1 text-xs"
+            className="h-8 gap-1 text-xs font-bold"
           >
             <span>الاسم</span>
             <ArrowUpDown className="h-3 w-3" />
@@ -342,14 +364,14 @@ export default function StudentsListPage() {
             variant={sortBy === "createdAt" ? "primary" : "outline"}
             size="sm"
             onClick={() => toggleSort("createdAt")}
-            className="h-8 gap-1 text-xs"
+            className="h-8 gap-1 text-xs font-bold"
           >
             <span>تاريخ التسجيل</span>
             <ArrowUpDown className="h-3 w-3" />
           </Button>
         </div>
 
-        {/* User Selectable Page Size (20 / 50 / 100) */}
+        {/* Page Size Selector */}
         <div className="flex items-center gap-2">
           <span>عرض بالصفحة:</span>
           <div className="flex items-center gap-1">
@@ -374,9 +396,34 @@ export default function StudentsListPage() {
         </div>
       </div>
 
+      {/* Floating Multi-select Bar for Bulk Printing */}
+      {selectedStudentIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/50 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <span className="text-sm font-bold">تم تحديد {selectedStudentIds.size} طالب</span>
+          <div className="h-4 w-px bg-slate-700" />
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={handlePrintSelectedCards}
+            className="gap-2 font-bold text-xs"
+          >
+            <Printer className="h-4 w-4" />
+            <span>طباعة الكروت المحددة</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedStudentIds(new Set())}
+            className="text-xs text-slate-400 hover:text-white hover:bg-slate-800"
+          >
+            إلغاء التحديد
+          </Button>
+        </div>
+      )}
+
       {/* Students Table */}
-      <div className="space-y-2">
-        <Table stickyHeader>
+      <div className="space-y-4">
+        <Table className="w-full">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 text-center">
@@ -388,13 +435,13 @@ export default function StudentsListPage() {
                   title="تحديد كل طلاب الصفحة الحالية"
                 />
               </TableHead>
-              <TableHead>الطالب</TableHead>
-              <TableHead>الصف الدراسي</TableHead>
-              <TableHead>المجموعة</TableHead>
-              <TableHead>أرقام التواصل</TableHead>
+              <TableHead className="text-right pr-4">الطالب</TableHead>
+              <TableHead className="text-right">الصف الدراسي</TableHead>
+              <TableHead className="text-right">المجموعة</TableHead>
+              <TableHead className="text-right">أرقام التواصل</TableHead>
               <TableHead className="text-center">حالة الطالب</TableHead>
               <TableHead className="text-center">دفع الشهر الحالي</TableHead>
-              <TableHead className="text-center">الإجراءات</TableHead>
+              <TableHead className="text-center w-28">الإجراءات</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -406,8 +453,11 @@ export default function StudentsListPage() {
                 icon={<Users className="h-10 w-10 text-muted stroke-[1.5]" />}
                 title="لا يوجد طلاب مسجلون"
                 description={
-                  rawSearch || classFilter !== "all" || groupFilter !== "all"
-                    ? "لا توجد نتائج مطابقة لمعايير البحث والفلترة."
+                  rawSearch ||
+                  classFilter !== "all" ||
+                  groupFilter !== "all" ||
+                  statusFilter !== "all"
+                    ? "لا توجد نتائج مطابقة لمعايير البحث والفلترة المحددة."
                     : "ابدأ بتسجيل أول طالب في إحدى المجموعات الدراسية."
                 }
               />
@@ -427,8 +477,9 @@ export default function StudentsListPage() {
                       title="تحديد الطالب للطباعة"
                     />
                   </TableCell>
+
                   {/* Student Avatar & Name */}
-                  <TableCell>
+                  <TableCell className="text-right pr-4">
                     <div className="flex items-center gap-3">
                       <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold overflow-hidden">
                         {student.photoUrl ? (
@@ -443,7 +494,7 @@ export default function StudentsListPage() {
                           <span>{student.name.charAt(0)}</span>
                         )}
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col text-right">
                         <Link
                           href={`/students/${student.id}`}
                           className="font-bold text-text hover:text-primary transition-colors text-sm"
@@ -459,7 +510,7 @@ export default function StudentsListPage() {
                   </TableCell>
 
                   {/* Class Name */}
-                  <TableCell>
+                  <TableCell className="text-right">
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-text">
                       <Layers className="h-3 w-3 text-primary" />
                       {student.className}
@@ -467,7 +518,7 @@ export default function StudentsListPage() {
                   </TableCell>
 
                   {/* Group Name */}
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Link
                       href={`/groups/${student.groupId}`}
                       className="inline-flex items-center rounded-md bg-secondary px-2.5 py-1 text-xs font-bold text-text hover:text-primary transition-colors"
@@ -477,7 +528,7 @@ export default function StudentsListPage() {
                   </TableCell>
 
                   {/* Contact Phones */}
-                  <TableCell>
+                  <TableCell className="text-right">
                     <div className="flex flex-col text-xs font-mono" dir="ltr">
                       <span className="text-text font-semibold">{student.phone}</span>
                       <span className="text-[11px] text-muted">
@@ -522,6 +573,7 @@ export default function StudentsListPage() {
                   {/* Action Buttons */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
+                      {/* Quick View */}
                       <Link href={`/students/${student.id}`}>
                         <Button
                           variant="ghost"
@@ -533,17 +585,19 @@ export default function StudentsListPage() {
                         </Button>
                       </Link>
 
+                      {/* Quick Print Card */}
                       <Link href={`/students/print-cards?ids=${student.id}`}>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-muted hover:text-primary"
-                          title="طباعة كارت الطالب الذكي (وش وضهر)"
+                          title="طباعة كارت الطالب الذكي"
                         >
                           <IdCard className="h-4 w-4" />
                         </Button>
                       </Link>
 
+                      {/* Quick Edit */}
                       <Link href={`/students/${student.id}/edit`}>
                         <Button
                           variant="ghost"
@@ -555,33 +609,44 @@ export default function StudentsListPage() {
                         </Button>
                       </Link>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setBlockTarget(student)}
-                        className={`h-8 w-8 p-0 ${
-                          student.status === "blocked"
-                            ? "text-success hover:bg-success/10"
-                            : "text-warning hover:bg-warning/10"
-                        }`}
-                        title={student.status === "blocked" ? "إلغاء الحظر" : "حظر الطالب"}
-                      >
-                        {student.status === "blocked" ? (
-                          <ShieldCheck className="h-4 w-4" />
-                        ) : (
-                          <Ban className="h-4 w-4" />
-                        )}
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTarget(student)}
-                        className="h-8 w-8 p-0 text-muted hover:text-danger"
-                        title="حذف الطالب"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Dropdown Menu TableActions */}
+                      <TableActions
+                        actions={[
+                          {
+                            icon: <Eye className="w-4 h-4 text-primary" />,
+                            label: "عرض البروفايل",
+                            onClick: () => router.push(`/students/${student.id}`),
+                          },
+                          {
+                            icon: (
+                              <IdCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            ),
+                            label: "طباعة الكارت الذكي",
+                            onClick: () => router.push(`/students/print-cards?ids=${student.id}`),
+                          },
+                          {
+                            icon: <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />,
+                            label: "تعديل البيانات",
+                            onClick: () => router.push(`/students/${student.id}/edit`),
+                          },
+                          {
+                            icon:
+                              student.status === "blocked" ? (
+                                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <Ban className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              ),
+                            label: student.status === "blocked" ? "إلغاء الحظر" : "حظر الطالب",
+                            onClick: () => handleToggleBlock(student.id, student.name),
+                          },
+                          {
+                            icon: <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />,
+                            label: "حذف الطالب",
+                            danger: true,
+                            onClick: () => handleDelete(student.id, student.name),
+                          },
+                        ]}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -590,135 +655,20 @@ export default function StudentsListPage() {
           </TableBody>
         </Table>
 
-        {/* Cursor Pagination footer */}
-        {totalCount > 0 && (
-          <div className="pt-2">
-            <Pagination
-              currentPage={page}
-              hasNextPage={hasNextPage}
-              hasPrevPage={hasPrevPage}
-              onNextPage={() => setPage((p) => p + 1)}
-              onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
-              totalCount={totalCount}
-              pageSize={pageSize}
-              itemLabel="طالب"
-            />
-          </div>
+        {/* Pagination */}
+        {!isLoading && totalCount > 0 && (
+          <Pagination
+            hasNextPage={hasNextPage}
+            hasPrevPage={hasPrevPage}
+            onNextPage={() => setPage((p) => p + 1)}
+            onPrevPage={() => setPage((p) => Math.max(p - 1, 1))}
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            itemLabel="طالب"
+          />
         )}
       </div>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={!!deleteTarget}
-        onClose={() => !isDeleting && setDeleteTarget(null)}
-        title="تأكيد حذف الطالب"
-      >
-        <div className="space-y-4" dir="rtl">
-          <div className="flex items-start gap-3 rounded-lg border border-danger/20 bg-danger/5 p-3 text-sm text-text">
-            <AlertTriangle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold text-text">
-                هل أنت متأكد من رغبتك في نقل الطالب &quot;{deleteTarget?.name}&quot; إلى سلة
-                المحذوفات؟
-              </p>
-              <p className="text-xs text-muted leading-relaxed">
-                سيتم إخفاء الطالب من قوائم الحضور والامتحانات الحالية، مع إمكانية استعادته لاحقاً من
-                سلة المحذوفات.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
-              إلغاء
-            </Button>
-            <Button
-              variant="danger"
-              onClick={handleDelete}
-              isLoading={isDeleting}
-              className="font-bold gap-1.5"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>نقل للمحذوفات</span>
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Block Confirmation Modal */}
-      <Modal
-        isOpen={!!blockTarget}
-        onClose={() => !isTogglingBlock && setBlockTarget(null)}
-        title={blockTarget?.status === "blocked" ? "تأكيد فك حظر الطالب" : "تأكيد حظر الطالب"}
-      >
-        <div className="space-y-4" dir="rtl">
-          <div className="flex items-start gap-3 rounded-lg border border-warning/20 bg-warning/5 p-3 text-sm text-text">
-            <Ban className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold text-text">
-                {blockTarget?.status === "blocked"
-                  ? `هل تريد إعادة تفعيل حساب الطالب "${blockTarget?.name}" والسماح له بحضور الحصص؟`
-                  : `هل أنت متأكد من حظر الطالب "${blockTarget?.name}"؟ سيتم منعه من تسجيل الحضور ودخول الحصص فوراً.`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button
-              variant="secondary"
-              onClick={() => setBlockTarget(null)}
-              disabled={isTogglingBlock}
-            >
-              إلغاء
-            </Button>
-            <Button
-              variant={blockTarget?.status === "blocked" ? "primary" : "danger"}
-              onClick={handleToggleBlock}
-              isLoading={isTogglingBlock}
-              className="font-bold"
-            >
-              {blockTarget?.status === "blocked" ? "إلغاء الحظر والتفعيل" : "تأكيد الحظر"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-      {/* Floating Bottom Action Bar for Selected Students */}
-      {selectedStudentIds.size > 0 && (
-        <aside
-          role="region"
-          aria-label="إجراءات الطلاب المحددين"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface/95 backdrop-blur-md border border-primary/40 shadow-2xl rounded-2xl p-3 px-5 flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-bottom-5 duration-200"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs">
-              {selectedStudentIds.size}
-            </div>
-            <span className="text-xs font-bold text-text">طالب تم تحديده</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handlePrintSelectedCards}
-              className="gap-2 font-black bg-primary hover:bg-primary/95 text-xs shadow-md rounded-xl px-4"
-            >
-              <Printer className="h-4 w-4" />
-              <span>طباعة الكروت (وش وضهر)</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedStudentIds(new Set())}
-              className="h-8 px-2.5 text-xs text-muted hover:text-text rounded-xl"
-            >
-              <span>إلغاء التحديد</span>
-            </Button>
-          </div>
-        </aside>
-      )}
     </div>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Menu, PanelRightClose, PanelRightOpen, LogOut, User } from "lucide-react";
+
+import { useAuthStore } from "@/stores";
 
 export interface HeaderProps {
   userName?: string;
   userRole?: string;
+  userPhoto?: string | null;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onOpenMobile?: () => void;
@@ -17,8 +20,8 @@ export interface HeaderProps {
 }
 
 export function Header({
-  userName = "أ. محمد رشاد",
-  userRole = "مدرس",
+  userName: userNameProp,
+  userPhoto: userPhotoProp,
   collapsed = false,
   onToggleCollapse,
   onOpenMobile,
@@ -26,6 +29,41 @@ export function Header({
   className,
   children,
 }: HeaderProps) {
+  const cachedName = useAuthStore((s) => s.name);
+  const cachedPhoto = useAuthStore((s) => s.photoUrl);
+  const updateProfile = useAuthStore((s) => s.updateProfile);
+
+  const displayName = userNameProp || cachedName || "أ. محمد رشاد";
+  const displayPhoto = userPhotoProp !== undefined ? userPhotoProp : cachedPhoto;
+
+  const [imageError, setImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [displayPhoto]);
+
+  // Revalidate profile in background and cache it in useAuthStore (stale-while-revalidate)
+  React.useEffect(() => {
+    let isMounted = true;
+    async function revalidateProfile() {
+      try {
+        const { getTeacherProfile } = await import("@/lib/actions/profile");
+        const res = await getTeacherProfile();
+        if (isMounted && res.success && res.profile) {
+          updateProfile({
+            name: res.profile.name,
+            photoUrl: res.profile.photoUrl,
+          });
+        }
+      } catch {
+        // Silently catch in background
+      }
+    }
+    revalidateProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [updateProfile]);
   const handleLogout = async () => {
     if (onLogout) {
       onLogout();
@@ -84,18 +122,33 @@ export function Header({
 
       {/* القسم الأيسر: بيانات المستخدم وزر تسجيل الخروج */}
       <div className="flex items-center gap-3 sm:gap-5">
-        {/* بيانات المستخدم (تصميم كبسولة) */}
-        <div className="flex items-center gap-3 p-1.5 pr-2 pl-4 rounded-full bg-gray-50 border border-gray-100">
-          {/* أيقونة المستخدم (بدون شادو) */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3b82f6] text-white">
-            <User className="h-4 w-4" />
+        {/* بيانات المستخدم: الصورة والاسم وبجواره Characters.svg بدون خلفية أو حدود */}
+        <div className="flex items-center gap-2.5">
+          {/* صورة / أيقونة المستخدم */}
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3b82f6] text-white overflow-hidden shadow-sm ring-1 ring-black/5">
+            {displayPhoto && !imageError ? (
+              <Image
+                src={displayPhoto}
+                alt={displayName}
+                fill
+                sizes="36px"
+                className="object-cover"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <User className="h-4 w-4" />
+            )}
           </div>
-          {/* الاسم والرتبة بجوار بعضهما */}
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="text-[13px] font-bold text-gray-800">{userName}</span>
-            <Badge variant="outline" className="text-[10px] text-gray-500 border-gray-200 bg-white">
-              {userRole}
-            </Badge>
+          {/* الاسم وبجواره Characters.svg */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[14px] font-bold text-gray-800">{displayName}</span>
+            <Image
+              src="/Characters.svg"
+              alt="شارة التوثيق"
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] shrink-0 select-none"
+            />
           </div>
         </div>
 

@@ -7,7 +7,6 @@ import {
   getDoc,
   updateDoc,
   setDoc,
-  addDoc,
   getCountFromServer,
   limit,
   startAfter,
@@ -15,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/stores";
+import { generateShortStudentId } from "@/lib/utils/barcode";
 import type {
   StudentsQueryParams,
   StudentsQueryResponse,
@@ -216,8 +216,8 @@ export async function createStudentClient(
     // Validate data manually or use zod if imported
     // For now we assume data is valid as it comes from the form
 
-    // Generate QR tokens logic (simplified for client)
-    const qrToken = `ST-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    // Generate QR tokens logic (short 6-char ID: 3 letters + 3 digits for clear barcodes)
+    const qrToken = generateShortStudentId();
     const parentQrToken = `PA-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     // Get group price
@@ -268,23 +268,20 @@ export async function createStudentClient(
       deletedBy: null,
     };
     const generateUniqueStudentId = async (): Promise<string> => {
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let id = "";
-      for (let i = 0; i < 6; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
+      const id = generateShortStudentId();
       const docSnap = await getDoc(doc(teacherRef, "students", id));
       if (docSnap.exists()) return generateUniqueStudentId();
       return id;
     };
 
     const studentId = await generateUniqueStudentId();
+    studentPayload.qrToken = studentId;
     const docRef = doc(teacherRef, "students", studentId);
     await setDoc(docRef, studentPayload);
 
     // Write qr token indices
     try {
-      await setDoc(doc(db, "qrIndex", qrToken), {
+      await setDoc(doc(db, "qrIndex", studentId), {
         type: "student",
         studentId: docRef.id,
         teacherId: teacherId,
@@ -425,6 +422,100 @@ export async function toggleStudentBlockClient(
     return {
       success: false,
       error: error instanceof Error ? error.message : "فشل تغيير الحالة",
+    };
+  }
+}
+
+/**
+ * Regenerates a student's attendance QR token with a short code (3 letters + 3 digits)
+ */
+export async function regenerateStudentQrToken(
+  studentId: string,
+  customToken?: string
+): Promise<{ success: boolean; qrToken?: string; error?: string }> {
+  try {
+    const { teacherId } = useAuthStore.getState();
+    if (!teacherId) throw new Error("يجب تسجيل الدخول");
+
+    const teacherRef = doc(db, "teachers", teacherId);
+    const studentRef = doc(teacherRef, "students", studentId);
+    const snap = await getDoc(studentRef);
+
+    if (!snap.exists()) {
+      return { success: false, error: "الطالب غير موجود" };
+    }
+
+    const newToken = customToken || generateShortStudentId();
+
+    await updateDoc(studentRef, {
+      qrToken: newToken,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await setDoc(doc(db, "qrIndex", newToken), {
+      teacherId: teacherRef.id,
+      studentId,
+      type: "attendance",
+    });
+
+    return { success: true, qrToken: newToken };
+  } catch (err) {
+    console.error("Failed to regenerate student token:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "فشل توليد كود جديد",
+    };
+  }
+}
+
+/**
+ * Bulk shortens all existing students with long tokens to 6-char tokens (3 letters + 3 digits)
+ */
+export async function shortenAllExistingStudentTokens(): Promise<{
+  success: boolean;
+  count: number;
+  error?: string;
+}> {
+  try {
+    const { teacherId } = useAuthStore.getState();
+    if (!teacherId) throw new Error("يجب تسجيل الدخول");
+
+    const teacherRef = doc(db, "teachers", teacherId);
+    const studentsSnap = await getDocs(
+      query(collection(teacherRef, "students"), where("deletedAt", "==", null))
+    );
+
+    let updatedCount = 0;
+    for (const studentDoc of studentsSnap.docs) {
+      const data = studentDoc.data();
+      const currentToken = (data.qrToken as string) || "";
+
+      // If token is longer than 7 characters, or starts with ST-, or is missing
+      if (currentToken.length > 7 || currentToken.startsWith("ST-") || !currentToken) {
+        const newToken = generateShortStudentId();
+
+        await updateDoc(studentDoc.ref, {
+          qrToken: newToken,
+          updatedAt: new Date().toISOString(),
+        });
+
+        await setDoc(doc(db, "qrIndex", newToken), {
+          teacherId: teacherRef.id,
+          studentId: studentDoc.id,
+          type: "attendance",
+        });
+
+        updatedCount++;
+      }
+    }
+
+    return { success: true, count: updatedCount };
+  } catch (err) {
+    console.error("Bulk shorten failed:", err);
+    return {
+      success: false,
+      count: 0,
+      error: err instanceof Error ? err.message : "فشل تحديث الأكواد",
     };
   }
 }

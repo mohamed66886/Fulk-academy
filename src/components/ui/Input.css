@@ -1,0 +1,239 @@
+/* ─── Modern Underline Input (ERP Design System) ─── */
+:root {
+  --color-primary-container: #ffffff;
+  --color-inner-container: #f8fafc;
+  --color-secondary-container: #e2e8f0;
+  --color-third-container: #cbd5e1;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #526071;
+  --color-input-border: #cbd5e1;
+  --input-colors: #2563eb;
+  --input-colors-hover: #1d4ed8;
+  --input-sweep-color: rgba(37, 99, 235, 0.15);
+  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-reg__group {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+/* ─── Label styling ─── */
+.form-reg__group .form-reg__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  user-select: none;
+}
+
+/* Icon next to label */
+.form-reg__group .form-reg__label .input-icon,
+.form-reg__group .form-reg__label svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* On focus: Label text turns matching the icon */
+.form-reg__group:focus-within .form-reg__label,
+.form-reg__group.is-focused .form-reg__label {
+  color: var(--input-colors, #0d9488);
+}
+
+/* ─── Input typing field ─── */
+.form-reg__group input,
+.form-reg__group textarea {
+  background-color: transparent !important;
+  border: none !important;
+  color: var(--color-text-primary, #0f172a);
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.35rem 0.2rem 0.45rem 0.2rem;
+  width: 100%;
+  outline: none !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 10;
+  text-align: right;
+  transition: all var(--transition-smooth);
+}
+
+.form-reg__group input[dir="ltr"],
+.form-reg__group textarea[dir="ltr"] {
+  text-align: left;
+}
+
+/* ─── Input row wrapper (holds the sweep overlay) ─── */
+.form-reg__group .form-reg__input-row {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+/* ─── Focus sweep — one-shot light flash that enters from the right
+   and exits past the left, exactly like the reference animation ─── */
+.form-reg__group .form-reg__sweep {
+  position: absolute;
+  inset: 0;
+  background-color: var(--input-sweep-color, rgba(6, 182, 212, 0.22));
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+  /* not running by default */
+}
+
+.form-reg__group:focus-within .form-reg__sweep,
+.form-reg__group.is-focused .form-reg__sweep {
+  animation: form-reg-sweep 0.7s cubic-bezier(0.4, 0, 0.2, 1) 1;
+}
+
+@keyframes form-reg-sweep {
+  0% {
+    transform: translateX(100%);
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+/* Placeholder */
+.form-reg__group input::placeholder,
+.form-reg__group textarea::placeholder {
+  color: #94a3b8;
+  opacity: 0.65;
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+
+/* ─── Underline Border ─── */
+.form-reg__group .form-reg__line {
+  position: relative;
+  width: 100%;
+  height: 1.5px;
+  background-color: var(--color-input-border, #cbd5e1);
+  border-radius: 9999px;
+  overflow: hidden;
+  transition:
+    background-color var(--transition-smooth),
+    height var(--transition-smooth);
+}
+
+/* Active underline bar that expands and turns cyan */
+.form-reg__group .form-reg__line-active {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 0%;
+  height: 100%;
+  background-color: var(--input-colors, #06b6d4);
+  border-radius: 9999px;
+  transition: width var(--transition-smooth);
+}
+
+/* Expand active underline on focus */
+.form-reg__group:focus-within .form-reg__line-active,
+.form-reg__group.is-focused .form-reg__line-active {
+  width: 100%;
+}
+
+.form-reg__group:focus-within .form-reg__line,
+.form-reg__group.is-focused .form-reg__line {
+  height: 2px;
+}
+
+/* Hover effect on unfocused line */
+.form-reg__group:hover:not(:focus-within):not(.is-focused):not(.disabled) .form-reg__line {
+  background-color: #94a3b8;
+}
+
+/* ─── Error state ─── */
+.form-reg__group.error .form-reg__label {
+  color: #f43f5e !important;
+}
+
+.form-reg__group.error .form-reg__line {
+  background-color: #fecdd3;
+}
+
+.form-reg__group.error .form-reg__line-active {
+  background-color: #f43f5e;
+  width: 100%;
+}
+
+/* ─── Disabled state ─── */
+.form-reg__group.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.form-reg__group.disabled input,
+.form-reg__group.disabled textarea {
+  cursor: not-allowed;
+}
+
+/* ─── Size Variants ─── */
+.form-reg__group.size-sm {
+  gap: 0.25rem;
+}
+
+.form-reg__group.size-sm .form-reg__label {
+  font-size: 0.825rem;
+}
+
+.form-reg__group.size-sm input {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.15rem 0.35rem 0.15rem;
+}
+
+.form-reg__group.size-lg {
+  gap: 0.5rem;
+}
+
+.form-reg__group.size-lg .form-reg__label {
+  font-size: 1.05rem;
+}
+
+.form-reg__group.size-lg input {
+  font-size: 1.05rem;
+  padding: 0.5rem 0.3rem 0.6rem 0.3rem;
+}
+
+/* ─── Date Input Enhancements ─── */
+.form-reg__group input[type="date"] {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.form-reg__group input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  filter: invert(0.4) sepia(1) saturate(5) hue-rotate(145deg);
+}
+
+.form-reg__group input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.form-reg__group input[type="date"]::-webkit-inner-spin-button {
+  display: none;
+  -webkit-appearance: none;
+}

@@ -171,7 +171,7 @@ export default function AttendanceHistoryPage() {
               </label>
               <DatePicker
                 date={selectedDate}
-                setDate={(date) => {
+                setDate={(date: Date | undefined) => {
                   setSelectedDate(date);
                   setCurrentPage(1);
                 }}

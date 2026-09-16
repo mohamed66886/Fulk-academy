@@ -136,7 +136,7 @@ export default async function ClassDetailsPage({ params }: ClassDetailsPageProps
           </div>
         </div>
 
-        <Table stickyHeader>
+        <Table className="w-full">
           <TableHeader>
             <TableRow>
               <TableHead>اسم المجموعة</TableHead>

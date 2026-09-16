@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getStudentsCardsData, type StudentCardData } from "@/lib/actions/students";
+import { shortenAllExistingStudentTokens } from "@/lib/client-actions/students";
 import { useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
 import { generateBarcodeDataUrl } from "@/lib/utils/barcode";
 import { generateQrDataUrl } from "@/lib/utils/qr";
@@ -19,19 +20,21 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
+import { SearchFilterCard, FilterField } from "@/components/ui/SearchFilterCard";
+import { DropdownButton } from "@/components/ui/DropdownButton";
 import {
   Printer,
   ArrowRight,
-  Settings2,
   HelpCircle,
   Scissors,
   CheckCircle2,
   ZoomIn,
   ZoomOut,
-  Layers,
   Sparkles,
-  Info,
   RefreshCw,
+  IdCard,
+  Plus,
+  Users,
 } from "lucide-react";
 
 const CARDS_PER_SHEET = 8; // 2 columns x 4 rows
@@ -49,6 +52,7 @@ export default function PrintCardsStudioPage() {
 }
 
 function PrintCardsStudioContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const rawIds = searchParams.get("ids");
   const queryClassId = searchParams.get("classId");
@@ -162,8 +166,8 @@ function PrintCardsStudioContent() {
         if (st.qrToken) {
           try {
             const bUrl = generateBarcodeDataUrl(st.qrToken, {
-              width: 4,
-              height: 90,
+              width: 3.5,
+              height: 85,
               margin: 0,
               displayValue: false,
             });
@@ -315,6 +319,46 @@ function PrintCardsStudioContent() {
     }, 1500);
   };
 
+  // Reset Filters
+  const handleResetFilters = () => {
+    setSelectedClass("all");
+    setSelectedGroup("all");
+    setCardSize("large");
+    setPrintLayout("duplex");
+    setFlipMode("long-edge");
+    setShowCutGuides(true);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("selectedStudentIdsForPrint");
+    }
+  };
+
+  // Bulk shorten existing long student tokens
+  const handleShortenAllLongTokens = async () => {
+    try {
+      const confirmed = window.confirm(
+        "هل ترغب في تبسيط وتحويل جميع أكواد الطلاب الطويلة القديمة إلى كود قصير مكوّن من 3 أحرف و 3 أرقام (مثل ABC123) لضمان أعلى وضوح وسرعة مسح للباركود؟"
+      );
+      if (!confirmed) return;
+
+      toast.info("جاري تحديث وتبسيط أكواد الطلاب...");
+      const res = await shortenAllExistingStudentTokens();
+      if (res.success) {
+        if (res.count > 0) {
+          toast.success(
+            `تم بنجاح تحويل ${res.count} كود طالب إلى الصيغة القصيرة (3 أحرف + 3 أرقام)!`
+          );
+          await loadData();
+        } else {
+          toast.success("كافة الطلاب لديهم بالفعل أكواد قصيرة ومحسنة.");
+        }
+      } else {
+        toast.error(res.error || "فشل تحديث الأكواد");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء تحديث الأكواد");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/70 pb-20 text-text" dir="rtl">
       {/* ─── Global Print Stylesheet ─────────────────────────────── */}
@@ -393,6 +437,11 @@ function PrintCardsStudioContent() {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+          .card-slot {
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           /* Eliminate any trailing blank page */
           .preview-sheet-wrapper:last-child .a4-print-page,
           .a4-print-page:last-of-type,
@@ -409,225 +458,218 @@ function PrintCardsStudioContent() {
         }
       `}</style>
 
-      {/* ─── Top Interactive Header (Hidden on Print) ─────────────── */}
-      <header className="no-print sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur-md shadow-xs px-4 py-3 sm:px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Back link & Title */}
-          <div className="flex items-center gap-3">
-            <Link href="/students">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 w-9 p-0 text-muted hover:text-text rounded-xl"
-                title="الرجوع لقائمة الطلاب"
-              >
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg md:text-xl font-extrabold text-text tracking-tight flex items-center gap-2">
-                  <span>استوديو طباعة كروت الطلاب الذكية</span>
-                  <Badge variant="primary" size="sm" className="font-mono font-bold">
-                    A4 Duplex
-                  </Badge>
-                </h1>
+      {/* ─── Unified Search, Filters & Controls Card (Hidden on Print) ─── */}
+      <div className="no-print max-w-7xl mx-auto px-4 sm:px-6 pt-6 mb-6">
+        <SearchFilterCard
+          title="استوديو طباعة كروت الطلاب الذكية"
+          description="تجهيز وطباعة بطاقات الهوية والباركود وكود ولي الأمر بنظام A4 Duplex المتطابق للوجهين بدقة هندسية."
+          icon={IdCard}
+          iconColor="text-primary"
+          resultsCount={students.length}
+          searchButtonText="تحديث الكروت"
+          onSearch={loadData}
+          onReset={handleResetFilters}
+          headerActions={
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Zoom Controls */}
+              <div className="hidden sm:flex items-center gap-1 bg-surface-raised dark:bg-slate-800 rounded-xl p-1 border border-border dark:border-slate-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
+                  className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
+                  title="تصغير المعاينة"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+                <span className="font-mono font-bold px-1.5 min-w-[42px] text-center text-[11px] text-slate-700 dark:text-slate-300">
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.min(1.2, Number((z + 0.15).toFixed(2))))}
+                  className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
+                  title="تكبير المعاينة"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
               </div>
-              <p className="text-xs text-muted flex items-center gap-2 mt-0.5">
-                <span>تم تجهيز</span>
-                <strong className="text-text font-bold">{students.length} كارت</strong>
-                <span>•</span>
+
+              {/* Print Instructions Dialog Trigger */}
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setShowTipsModal(true)}
+                className="gap-1.5 font-bold text-xs"
+                leftIcon={<HelpCircle className="h-4 w-4 text-primary ml-1" />}
+              >
+                <span className="hidden md:inline">إرشادات الطباعة</span>
+              </Button>
+
+              {/* Quick Actions Dropdown */}
+              <DropdownButton
+                label="إجراءات سريعة"
+                variant="outline"
+                size="md"
+                split={false}
+                items={[
+                  {
+                    label: "إرشادات الطباعة المتطابقة",
+                    icon: <HelpCircle className="w-4 h-4 text-primary" />,
+                    onClick: () => setShowTipsModal(true),
+                  },
+                  {
+                    label: "تبسيط الأكواد القديمة (3 حروف + 3 أرقام)",
+                    icon: <Sparkles className="w-4 h-4 text-amber-500" />,
+                    onClick: handleShortenAllLongTokens,
+                  },
+                  {
+                    label: "العودة لقائمة الطلاب",
+                    icon: <Users className="w-4 h-4 text-slate-500" />,
+                    onClick: () => router.push("/students"),
+                  },
+                  {
+                    label: "إضافة طالب جديد",
+                    icon: <Plus className="w-4 h-4 text-slate-500" />,
+                    onClick: () => router.push("/students/create"),
+                  },
+                  {
+                    label: "تحديث قائمة الكروت",
+                    icon: <RefreshCw className="w-4 h-4 text-slate-500" />,
+                    onClick: loadData,
+                  },
+                ]}
+              />
+
+              {/* Main Print Button */}
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={handlePrint}
+                disabled={isLoading || students.length === 0}
+                leftIcon={<Printer className="h-4 w-4 ml-1.5" />}
+                className="font-bold shadow-md px-5"
+              >
+                طباعة الكروت الآن ({students.length})
+              </Button>
+            </div>
+          }
+          extraActions={
+            <div className="flex flex-wrap items-center justify-between gap-4 w-full pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showCutGuides}
+                  onChange={(e) => setShowCutGuides(e.target.checked)}
+                  className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <Scissors className="h-3.5 w-3.5 text-slate-400" />
+                  إظهار مستطيل وعلامات القص الواضحة (9.45 × 6.45 سم)
+                </span>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-slate-400 text-xs">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                 <span>
-                  {Math.ceil(students.length / CARDS_PER_SHEET) || 0} ورقة A4 (
+                  المقاس المطبق:{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {CARD_SIZES[cardSize].label}
+                  </strong>{" "}
+                  • كل ورقة A4 تضم 8 كروت متطابقة (
+                  {Math.ceil(students.length / CARDS_PER_SHEET) || 0} ورقة A4 /{" "}
                   {sheetsToRender.length} صفحة طباعة)
                 </span>
                 {isGeneratingCodes && (
-                  <span className="inline-flex items-center gap-1 text-primary animate-pulse font-medium">
+                  <span className="inline-flex items-center gap-1 text-primary animate-pulse font-medium mr-2">
                     <RefreshCw className="h-3 w-3 animate-spin" />
                     جاري تجهيز الباركودات...
                   </span>
                 )}
-              </p>
+              </div>
             </div>
-          </div>
-
-          {/* Action Buttons & Zoom */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Zoom Controls */}
-            <div className="hidden sm:flex items-center gap-1 bg-surface-raised rounded-xl p-1 border border-border text-xs">
-              <button
-                type="button"
-                onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
-                className="p-1 text-muted hover:text-text rounded-lg hover:bg-surface"
-                title="تصغير المعاينة"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-              <span className="font-mono font-bold px-1.5 min-w-[42px] text-center text-[11px]">
-                {Math.round(zoomLevel * 100)}%
-              </span>
-              <button
-                type="button"
-                onClick={() => setZoomLevel((z) => Math.min(1.2, Number((z + 0.15).toFixed(2))))}
-                className="p-1 text-muted hover:text-text rounded-lg hover:bg-surface"
-                title="تكبير المعاينة"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Print Instructions Dialog Trigger */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowTipsModal(true)}
-              className="gap-1.5 font-bold text-xs rounded-xl"
+          }
+        >
+          {/* 1. Class Filter */}
+          <FilterField label="الصف الدراسي">
+            <Select
+              value={selectedClass}
+              onChange={(e) => {
+                setSelectedClass(e.target.value);
+                setSelectedGroup("all");
+              }}
+              sizeVariant="md"
             >
-              <HelpCircle className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">إرشادات الطباعة المتطابقة</span>
-            </Button>
-
-            {/* Main Print Button */}
-            <Button
-              type="button"
-              size="md"
-              onClick={handlePrint}
-              disabled={isLoading || students.length === 0}
-              className="gap-2 font-black shadow-md rounded-xl bg-primary hover:bg-primary/95 px-5"
-            >
-              <Printer className="h-4 w-4" />
-              <span>طباعة الكروت الآن</span>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* ─── Control & Settings Toolbar (Hidden on Print) ─────────── */}
-      <div className="no-print max-w-7xl mx-auto px-4 sm:px-6 pt-5">
-        <div className="bg-surface rounded-2xl border border-border p-4 shadow-xs space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            {/* 1. Card Size Preset */}
-            <div>
-              <label className="block text-xs font-bold text-text mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                <span>حجم الكارت المطبوع:</span>
-              </label>
-              <Select
-                value={cardSize}
-                onChange={(e) => setCardSize(e.target.value as CardSizePreset)}
-                className="text-xs font-bold text-primary"
-              >
-                <option value="large">كبير جداً (96 × 62 مم - يملأ الورقة بوضوح)</option>
-                <option value="extra-large">أقصى حجم (98 × 63 مم)</option>
-                <option value="medium">متوسط (90 × 58 مم)</option>
-                <option value="standard">القياسي الأصلي (85.6 × 54 مم)</option>
-              </Select>
-            </div>
-
-            {/* 2. Print Mode */}
-            <div>
-              <label className="block text-xs font-bold text-text mb-1.5 flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5 text-primary" />
-                <span>نمط ترتيب الصفحات:</span>
-              </label>
-              <Select
-                value={printLayout}
-                onChange={(e) =>
-                  setPrintLayout(
-                    e.target.value as "duplex" | "fronts-then-backs" | "fronts-only" | "backs-only"
-                  )
-                }
-                className="text-xs font-medium"
-              >
-                <option value="duplex">وجه وظهر متتاليان (Duplex المزدوج)</option>
-                <option value="fronts-then-backs">الأوجه أولاً ثم كل الظهور (طابعة عادية)</option>
-                <option value="fronts-only">الأوجه فقط (Front Only)</option>
-                <option value="backs-only">الظهور فقط (Back Only)</option>
-              </Select>
-            </div>
-
-            {/* 2. Duplex Flip Mode */}
-            <div>
-              <label className="block text-xs font-bold text-text mb-1.5 flex items-center gap-1.5">
-                <Settings2 className="h-3.5 w-3.5 text-primary" />
-                <span>طريقة قلب الورقة (Duplex Flip):</span>
-              </label>
-              <Select
-                value={flipMode}
-                onChange={(e) => setFlipMode(e.target.value as "long-edge" | "short-edge")}
-                className="text-xs font-medium"
-              >
-                <option value="long-edge">
-                  على الحافة الطويلة (Long Edge - الافتراضي والموصى به)
+              <option value="all">جميع الصفوف (أو المحدد مسبقاً)</option>
+              {classesList.map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
                 </option>
-                <option value="short-edge">على الحافة القصيرة (Short Edge)</option>
-              </Select>
-            </div>
+              ))}
+            </Select>
+          </FilterField>
 
-            {/* 3. Class Filter */}
-            <div>
-              <label className="block text-xs font-bold text-text mb-1.5">الصف الدراسي:</label>
-              <Select
-                value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value);
-                  setSelectedGroup("all");
-                }}
-                className="text-xs font-medium"
-              >
-                <option value="all">جميع الصفوف (أو المحدد مسبقاً)</option>
-                {classesList.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
+          {/* 2. Group Filter */}
+          <FilterField label="المجموعة الدراسية">
+            <Select
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+              sizeVariant="md"
+            >
+              <option value="all">جميع المجموعات</option>
+              {availableGroups.map((grp) => (
+                <option key={grp.id} value={grp.id}>
+                  {grp.name}
+                </option>
+              ))}
+            </Select>
+          </FilterField>
 
-            {/* 4. Group Filter */}
-            <div>
-              <label className="block text-xs font-bold text-text mb-1.5">المجموعة الدراسية:</label>
-              <Select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="text-xs font-medium"
-              >
-                <option value="all">جميع المجموعات</option>
-                {availableGroups.map((grp) => (
-                  <option key={grp.id} value={grp.id}>
-                    {grp.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          {/* 3. Card Size Preset */}
+          <FilterField label="حجم الكارت المطبوع">
+            <Select
+              value={cardSize}
+              onChange={(e) => setCardSize(e.target.value as CardSizePreset)}
+              sizeVariant="md"
+            >
+              <option value="large">مستطيل القص المعتمد (العرض 9.45 × الطول 6.45 سم)</option>
+              <option value="extra-large">أقصى اتساع (98 × 63 مم)</option>
+              <option value="medium">متوسط (90 × 58 مم)</option>
+              <option value="standard">القياسي الأصلي (85.6 × 54 مم)</option>
+            </Select>
+          </FilterField>
 
-          {/* Quick toggles row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border text-xs">
-            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showCutGuides}
-                onChange={(e) => setShowCutGuides(e.target.checked)}
-                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-              />
-              <span className="font-bold text-text flex items-center gap-1">
-                <Scissors className="h-3.5 w-3.5 text-muted" />
-                إظهار علامات وإرشادات القص المتقطعة (Cut Guides)
-              </span>
-            </label>
+          {/* 4. Print Mode */}
+          <FilterField label="نمط ترتيب الصفحات">
+            <Select
+              value={printLayout}
+              onChange={(e) =>
+                setPrintLayout(
+                  e.target.value as "duplex" | "fronts-then-backs" | "fronts-only" | "backs-only"
+                )
+              }
+              sizeVariant="md"
+            >
+              <option value="duplex">وجه وظهر متتاليان (Duplex المزدوج)</option>
+              <option value="fronts-then-backs">الأوجه أولاً ثم كل الظهور (طابعة عادية)</option>
+              <option value="fronts-only">الأوجه فقط (Front Only)</option>
+              <option value="backs-only">الظهور فقط (Back Only)</option>
+            </Select>
+          </FilterField>
 
-            <div className="flex items-center gap-2 text-muted">
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>
-                المقاس المطبق: <strong className="text-text">{CARD_SIZES[cardSize].label}</strong> •
-                كل ورقة A4 تضم 8 كروت متطابقة الوجه والظهر.
-              </span>
-            </div>
-          </div>
-        </div>
+          {/* 5. Duplex Flip Mode */}
+          <FilterField label="طريقة قلب الورقة (Duplex Flip)">
+            <Select
+              value={flipMode}
+              onChange={(e) => setFlipMode(e.target.value as "long-edge" | "short-edge")}
+              sizeVariant="md"
+            >
+              <option value="long-edge">على الحافة الطويلة (Long Edge - موصى به)</option>
+              <option value="short-edge">على الحافة القصيرة (Short Edge)</option>
+            </Select>
+          </FilterField>
+        </SearchFilterCard>
       </div>
 
       {/* ─── Live Sheets Area (Printed + Previewed) ────────────────── */}
@@ -638,19 +680,34 @@ function PrintCardsStudioContent() {
             <p className="font-bold text-text">جاري إعداد وتحميل بيانات الكروت...</p>
           </div>
         ) : students.length === 0 ? (
-          <div className="bg-surface rounded-2xl border border-border p-12 text-center space-y-4">
-            <Info className="h-10 w-10 text-muted mx-auto stroke-[1.5]" />
+          <div className="bg-surface rounded-2xl border border-border p-12 text-center space-y-4 shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <IdCard className="w-8 h-8 stroke-[1.5]" />
+            </div>
             <h3 className="text-base font-bold text-text">لم يتم العثور على طلاب للطباعة</h3>
-            <p className="text-xs text-muted max-w-md mx-auto">
+            <p className="text-xs text-muted max-w-md mx-auto leading-relaxed">
               قم بالرجوع لقائمة الطلاب وحدد الطلاب المراد طباعة كروت لهم، أو اختر صَفاً ومجموعة من
-              القائمة أعلاه.
+              القائمة أعلاه لتوليد الكروت تلقائياً.
             </p>
-            <Link href="/students">
-              <Button size="sm" className="gap-1.5 font-bold">
-                <ArrowRight className="h-4 w-4" />
-                <span>العودة لقائمة الطلاب</span>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Link href="/students">
+                <Button
+                  variant="primary"
+                  size="md"
+                  leftIcon={<ArrowRight className="h-4 w-4 ml-1" />}
+                >
+                  العودة لقائمة الطلاب
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={loadData}
+                leftIcon={<RefreshCw className="h-4 w-4 ml-1" />}
+              >
+                إعادة المحاولة
               </Button>
-            </Link>
+            </div>
           </div>
         ) : (
           <div id="print-sheets-area" className="space-y-12">
@@ -730,80 +787,130 @@ function PrintCardsStudioContent() {
         )}
       </main>
 
+      {/* ─── Floating Quick Action Bar when scrolled (Hidden on Print) ─── */}
+      {students.length > 0 && !isLoading && (
+        <div className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface/95 dark:bg-slate-900/95 backdrop-blur-md border border-border dark:border-slate-700 shadow-2xl rounded-2xl px-4 py-2.5 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+            <Badge variant="primary" size="sm" className="font-bold">
+              {students.length} كارت
+            </Badge>
+            <span className="hidden sm:inline text-slate-300 dark:text-slate-600">|</span>
+            <span className="hidden sm:inline text-slate-500 dark:text-slate-400 text-[11px]">
+              {Math.ceil(students.length / CARDS_PER_SHEET) || 0} ورقة A4 ({sheetsToRender.length}{" "}
+              صفحة)
+            </span>
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-1 bg-surface-raised dark:bg-slate-800 rounded-xl p-0.5 border border-border dark:border-slate-700 text-xs">
+            <button
+              type="button"
+              onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
+              className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
+              title="تصغير المعاينة"
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </button>
+            <span className="font-mono font-bold px-1.5 min-w-[38px] text-center text-[10px] text-slate-700 dark:text-slate-300">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoomLevel((z) => Math.min(1.2, Number((z + 0.15).toFixed(2))))}
+              className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700 transition-colors"
+              title="تكبير المعاينة"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={handlePrint}
+            leftIcon={<Printer className="h-3.5 w-3.5 ml-1" />}
+            className="font-bold shadow-sm"
+          >
+            طباعة الآن
+          </Button>
+        </div>
+      )}
+
       {/* ─── Print Tips Modal (Hidden on Print) ───────────────────── */}
       {showTipsModal && (
         <div
-          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setShowTipsModal(false)}
         >
           <div
-            className="bg-surface rounded-2xl border border-border p-6 max-w-lg w-full shadow-2xl space-y-4"
+            className="bg-surface dark:bg-slate-900 rounded-2xl border border-border dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
-            <div className="flex items-center gap-3 border-b border-border pb-3">
+            <div className="flex items-center gap-3 border-b border-border dark:border-slate-800 pb-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
                 <HelpCircle className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-text">
+                <h3 className="text-base font-bold text-text dark:text-slate-100">
                   إرشادات للحصول على تطابق 100% بين الوجه والظهر
                 </h3>
-                <p className="text-xs text-muted">
+                <p className="text-xs text-muted dark:text-slate-400">
                   اتبع هذه الإعدادات البسيطة في نافذة الطباعة بمجرد الضغط على زر &quot;طباعة&quot;:
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 text-xs text-text">
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised border border-border">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+            <div className="space-y-3 text-xs text-text dark:text-slate-200">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised dark:bg-slate-800/60 border border-border dark:border-slate-700/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold">حجم الورق (Paper Size):</strong>
-                  <p className="text-muted text-[11px] mt-0.5">
+                  <p className="text-muted dark:text-slate-400 text-[11px] mt-0.5">
                     اختر <strong>A4</strong> دائماً (وليس Letter).
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised border border-border">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised dark:bg-slate-800/60 border border-border dark:border-slate-700/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold">الهوامش (Margins):</strong>
-                  <p className="text-muted text-[11px] mt-0.5">
+                  <p className="text-muted dark:text-slate-400 text-[11px] mt-0.5">
                     اختر <strong>بلا هوامش (None)</strong> أو <strong>صفر</strong>، لأن التصميم
                     يحتوي على هوامش هندسية دقيقة متماثلة في الكود.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised border border-border">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised dark:bg-slate-800/60 border border-border dark:border-slate-700/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold">مقياس الرسم (Scale):</strong>
-                  <p className="text-muted text-[11px] mt-0.5">
+                  <p className="text-muted dark:text-slate-400 text-[11px] mt-0.5">
                     اختر <strong>100% (الافتراضي / Default)</strong>، وتجنب خيار &quot;Fit to
                     printable area&quot;.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised border border-border">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised dark:bg-slate-800/60 border border-border dark:border-slate-700/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold">الطباعة على الوجهين (Duplex / Two-Sided):</strong>
-                  <p className="text-muted text-[11px] mt-0.5">
+                  <p className="text-muted dark:text-slate-400 text-[11px] mt-0.5">
                     اختر <strong>Flip on long edge (القلب على الحافة الطويلة)</strong> حتى يتطابق
                     الوجه والظهر تماماً.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised border border-border">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-raised dark:bg-slate-800/60 border border-border dark:border-slate-700/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold">رسومات الخلفية (Background Graphics):</strong>
-                  <p className="text-muted text-[11px] mt-0.5">
+                  <p className="text-muted dark:text-slate-400 text-[11px] mt-0.5">
                     تأكد من تفعيل خيار <strong>Background Graphics</strong> في المتصفح لظهور ألوان
                     وشعار الكارت بأعلى جودة.
                   </p>
@@ -815,6 +922,7 @@ function PrintCardsStudioContent() {
               <Button
                 type="button"
                 size="sm"
+                variant="primary"
                 onClick={() => setShowTipsModal(false)}
                 className="font-bold"
               >

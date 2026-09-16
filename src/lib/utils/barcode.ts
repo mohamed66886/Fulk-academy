@@ -43,3 +43,25 @@ export function generateBarcodeDataUrl(token: string, options: BarcodeOptions = 
     return "";
   }
 }
+
+/**
+ * Generates a short, human-friendly student attendance ID (e.g. "KMR742" or "ABC123")
+ * Format: 3 uppercase English letters + 3 digits (6 characters total).
+ * Produces wide, highly legible barcode bars with instant scanning reliability.
+ */
+export function generateShortStudentId(): string {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // 24 letters (omits confusing I and O)
+  const digits = "0123456789";
+
+  let l = "";
+  for (let i = 0; i < 3; i++) {
+    l += letters.charAt(Math.floor(Math.random() * letters.length));
+  }
+
+  let d = "";
+  for (let i = 0; i < 3; i++) {
+    d += digits.charAt(Math.floor(Math.random() * digits.length));
+  }
+
+  return `${l}${d}`;
+}

@@ -8,11 +8,10 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
 
 export const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, stickyHeader = false, ...props }, ref) => (
-    // استخدام تصميم مسطح بدون إطارات، مع تفعيل خط Cairo والتمرير الأفقي للموبايل
     <div
       className={cn(
-        "relative w-full overflow-x-auto rounded-xl bg-white font-cairo",
-        stickyHeader && "max-h-[600px]"
+        "relative w-full overflow-x-auto rounded-xl bg-surface border border-border transition-all shadow-xs",
+        stickyHeader && "max-h-[650px] overflow-y-auto"
       )}
     >
       <table
@@ -34,8 +33,7 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeader
     <thead
       ref={ref}
       className={cn(
-        // لون رمادي داكن جداً للرأس
-        "bg-gray-800 text-gray-50",
+        "bg-surface-secondary text-text font-bold border-b border-border",
         sticky && "sticky top-0 z-10",
         className
       )}
@@ -49,7 +47,11 @@ export const TableBody = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />
+  <tbody
+    ref={ref}
+    className={cn("[&_tr:last-child]:border-0 divide-y divide-border/60", className)}
+    {...props}
+  />
 ));
 TableBody.displayName = "TableBody";
 
@@ -60,8 +62,7 @@ export const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      // تأثيرات ناعمة عند تمرير الماوس، بدون خطوط فاصلة حادة
-      "transition-colors hover:bg-gray-50 data-[state=selected]:bg-gray-100",
+      "transition-colors hover:bg-primary/[0.03] dark:hover:bg-slate-800/60 data-[state=selected]:bg-primary/[0.08]",
       className
     )}
     {...props}
@@ -76,7 +77,7 @@ export const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 text-right align-middle font-semibold whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      "h-12 px-4 text-right align-middle font-bold text-xs text-muted uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -91,13 +92,36 @@ export const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-4 align-middle text-gray-700 whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      "p-4 align-middle text-sm text-text whitespace-nowrap [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
   />
 ));
 TableCell.displayName = "TableCell";
+
+export const TableFooter = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn(
+      "bg-surface-secondary/70 border-t border-border font-medium text-text",
+      className
+    )}
+    {...props}
+  />
+));
+TableFooter.displayName = "TableFooter";
+
+export const TableCaption = React.forwardRef<
+  HTMLTableCaptionElement,
+  React.HTMLAttributes<HTMLTableCaptionElement>
+>(({ className, ...props }, ref) => (
+  <caption ref={ref} className={cn("mt-4 text-xs text-muted", className)} {...props} />
+));
+TableCaption.displayName = "TableCaption";
 
 export interface TableEmptyProps {
   colSpan: number;
@@ -115,10 +139,10 @@ export function TableEmpty({
   return (
     <TableRow>
       <TableCell colSpan={colSpan} className="h-48 text-center hover:bg-transparent">
-        <div className="flex flex-col items-center justify-center gap-2 text-gray-400">
-          {icon || <Inbox className="h-12 w-12 stroke-[1.5] text-gray-300" />}
-          <p className="text-base font-semibold text-gray-700">{title}</p>
-          <p className="text-xs text-gray-500 max-w-sm">{description}</p>
+        <div className="flex flex-col items-center justify-center gap-2 text-muted">
+          {icon || <Inbox className="h-10 w-10 stroke-[1.5] text-muted/60" />}
+          <p className="text-base font-semibold text-text">{title}</p>
+          <p className="text-xs text-muted max-w-sm">{description}</p>
         </div>
       </TableCell>
     </TableRow>
@@ -130,15 +154,21 @@ export interface TableSkeletonProps {
   cols?: number;
 }
 
-export function TableSkeleton({ cols = 4 }: TableSkeletonProps) {
+export function TableSkeleton({ rows = 4, cols = 4 }: TableSkeletonProps) {
   return (
-    <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={cols} className="h-32 text-center align-middle">
-        <div className="flex w-full items-center justify-center gap-3 text-muted">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="text-sm font-semibold">جاري تحميل البيانات...</span>
-        </div>
-      </TableCell>
-    </TableRow>
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <TableRow key={i} className="hover:bg-transparent">
+          <TableCell colSpan={cols} className="h-20 text-center align-middle">
+            <div className="flex w-full items-center justify-center gap-3 text-muted">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="text-xs font-semibold">جاري تحميل البيانات...</span>
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
   );
 }
+
+export default Table;

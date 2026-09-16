@@ -1,132 +1,188 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import Image from "next/image";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
+import {
+  createStudentClient,
+  updateStudentClient,
+  deleteStudentClient,
+} from "@/lib/client-actions/students";
 import { studentSchema, type StudentFormData } from "@/lib/validators/student";
 import { storage } from "@/lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { compressImage } from "@/lib/utils/image-compression";
+import { EntityForm } from "@/components/ui/EntityForm";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { FormField } from "@/components/ui/form-field";
 import { Badge } from "@/components/ui/badge";
-import { compressImage } from "@/lib/utils/image-compression";
+import { toast } from "@/components/ui/toast";
 import {
-  Upload,
+  Users,
   User,
   Phone,
   Layers,
-  Users,
   DollarSign,
   Camera,
-  AlertCircle,
+  Upload,
   Calculator,
+  AlertCircle,
+  IdCard,
 } from "lucide-react";
 
-interface StudentFormProps {
-  classes: Array<{ id: string; name: string }>;
-  groups: Array<{ id: string; name: string; classId: string; price: number }>;
-  initialData?: Partial<StudentFormData>;
+export interface StudentFormProps {
+  initialData?: Partial<StudentFormData> & { id?: string };
   isEdit?: boolean;
-  onSubmit: (data: StudentFormData) => Promise<void>;
-  isSubmitting: boolean;
+  initialClasses?: Array<{ id: string; name: string }>;
+  initialGroups?: Array<{ id: string; name: string; classId: string; price: number }>;
+  defaultClassId?: string;
+  defaultGroupId?: string;
+  // Backwards compatibility props
+  classes?: Array<{ id: string; name: string }>;
+  groups?: Array<{ id: string; name: string; classId: string; price: number }>;
+  onSubmit?: (data: StudentFormData) => Promise<void>;
+  isSubmitting?: boolean;
 }
 
 export function StudentForm({
-  classes,
-  groups,
   initialData,
   isEdit = false,
-  onSubmit,
-  isSubmitting,
+  initialClasses,
+  initialGroups,
+  defaultClassId,
+  defaultGroupId,
+  classes: passedClasses,
+  groups: passedGroups,
+  onSubmit: externalOnSubmit,
+  isSubmitting: externalIsSubmitting,
 }: StudentFormProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const studentId = initialData?.id;
+
+  // Cached data
+  const { data: cachedClasses } = useClassesForSelect();
+  const { data: cachedGroupsData } = useGroups();
+
+  const classesList = React.useMemo(
+    () => passedClasses || initialClasses || cachedClasses || [],
+    [passedClasses, initialClasses, cachedClasses]
+  );
+
+  const groupsList = React.useMemo(() => {
+    if (passedGroups) return passedGroups;
+    if (initialGroups) return initialGroups;
+    if (cachedGroupsData?.success && cachedGroupsData.groups) {
+      return cachedGroupsData.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        classId: g.classId,
+        price: g.price,
+      }));
+    }
+    return [];
+  }, [passedGroups, initialGroups, cachedGroupsData]);
+
+  // Photo State
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(
     initialData?.photoUrl || null
   );
   const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
 
-  const defaultClassId = initialData?.classId || classes[0]?.id || "";
-  const filteredGroupsForDefault = groups.filter((g) => g.classId === defaultClassId);
-  const defaultGroupId =
-    initialData?.groupId || filteredGroupsForDefault[0]?.id || groups[0]?.id || "";
-
-  const defaultGroupObj = groups.find((g) => g.id === defaultGroupId);
-  const defaultBasePrice = defaultGroupObj ? defaultGroupObj.price : 0;
-
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<StudentFormData>({
-    resolver: zodResolver(studentSchema),
-    defaultValues: {
-      name: initialData?.name || "",
-      phone: initialData?.phone || "",
-      classId: defaultClassId,
-      groupId: defaultGroupId,
-      parentName: initialData?.parentName || "",
-      parentPhone: initialData?.parentPhone || "",
-      photoUrl: initialData?.photoUrl || "",
-      discount: initialData?.discount || 0,
-      groupPrice: initialData?.groupPrice !== undefined ? initialData.groupPrice : defaultBasePrice,
-      finalPrice: initialData?.finalPrice !== undefined ? initialData.finalPrice : defaultBasePrice,
-      status: initialData?.status || "active",
-      blockReason: initialData?.blockReason || "",
-    },
+  // Form State
+  const [formData, setFormData] = React.useState<StudentFormData>({
+    name: initialData?.name || "",
+    phone: initialData?.phone || "",
+    classId: initialData?.classId || defaultClassId || "",
+    groupId: initialData?.groupId || defaultGroupId || "",
+    parentName: initialData?.parentName || "",
+    parentPhone: initialData?.parentPhone || "",
+    photoUrl: initialData?.photoUrl || "",
+    discount: initialData?.discount || 0,
+    groupPrice: initialData?.groupPrice !== undefined ? initialData.groupPrice : 0,
+    finalPrice: initialData?.finalPrice !== undefined ? initialData.finalPrice : 0,
+    status: initialData?.status || "active",
+    blockReason: initialData?.blockReason || "",
   });
 
-  const selectedClassId = watch("classId");
-  const selectedGroupId = watch("groupId");
-  const discountValue = watch("discount") || 0;
-  const currentStatus = watch("status");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   // Filter groups according to selected class
   const availableGroups = React.useMemo(() => {
-    if (!selectedClassId) return groups;
-    return groups.filter((g) => g.classId === selectedClassId);
-  }, [groups, selectedClassId]);
+    if (!formData.classId) return groupsList;
+    return groupsList.filter((g) => g.classId === formData.classId);
+  }, [groupsList, formData.classId]);
 
-  // When class changes, adjust group selection and update groupPrice
+  // Synchronize class & group on initial load
+  React.useEffect(() => {
+    if (!formData.classId && classesList.length > 0) {
+      const selectedCls = defaultClassId || classesList[0]!.id;
+      setFormData((prev) => ({ ...prev, classId: selectedCls }));
+    }
+  }, [classesList, formData.classId, defaultClassId]);
+
   React.useEffect(() => {
     if (availableGroups.length > 0) {
-      const isCurrentGroupInClass = availableGroups.some((g) => g.id === selectedGroupId);
+      const isCurrentGroupInClass = availableGroups.some((g) => g.id === formData.groupId);
       if (!isCurrentGroupInClass) {
-        const firstGroup = availableGroups[0]!;
-        setValue("groupId", firstGroup.id);
-        setValue("groupPrice", firstGroup.price);
-        setValue("finalPrice", Math.max(0, firstGroup.price - discountValue));
+        const targetGroup =
+          availableGroups.find((g) => g.id === defaultGroupId) || availableGroups[0]!;
+        setFormData((prev) => ({
+          ...prev,
+          groupId: targetGroup.id,
+          groupPrice: targetGroup.price,
+          finalPrice: Math.max(0, targetGroup.price - (Number(prev.discount) || 0)),
+        }));
       }
     }
-  }, [selectedClassId, availableGroups, selectedGroupId, discountValue, setValue]);
+  }, [formData.classId, availableGroups, formData.groupId, defaultGroupId]);
 
-  // When group changes, update group base price
+  // Selected names for preview
+  const selectedClassName = React.useMemo(() => {
+    const found = classesList.find((c) => c.id === formData.classId);
+    return found ? found.name : "";
+  }, [classesList, formData.classId]);
+
+  const selectedGroupName = React.useMemo(() => {
+    const found = groupsList.find((g) => g.id === formData.groupId);
+    return found ? found.name : "";
+  }, [groupsList, formData.groupId]);
+
+  // Recalculated final price
+  const calculatedFinalPrice = Math.max(
+    0,
+    (Number(formData.groupPrice) || 0) - (Number(formData.discount) || 0)
+  );
+
+  // Group selection change handler
   const handleGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newGroupId = e.target.value;
-    setValue("groupId", newGroupId);
-    const grp = groups.find((g) => g.id === newGroupId);
-    if (grp) {
-      setValue("groupPrice", grp.price);
-      setValue("finalPrice", Math.max(0, grp.price - discountValue));
+    const grp = groupsList.find((g) => g.id === newGroupId);
+    const newPrice = grp ? grp.price : 0;
+    setFormData((prev) => ({
+      ...prev,
+      groupId: newGroupId,
+      groupPrice: newPrice,
+      finalPrice: Math.max(0, newPrice - (Number(prev.discount) || 0)),
+    }));
+    if (fieldErrors.groupId) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.groupId;
+        return next;
+      });
     }
   };
 
-  // Recalculate final price when discount or groupPrice changes
-  const currentGroupPrice = watch("groupPrice") || 0;
-  const calculatedFinalPrice = Math.max(0, currentGroupPrice - discountValue);
-
-  // Handle Photo upload
+  // Photo Upload handler
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (max 4MB)
     if (file.size > 4 * 1024 * 1024) {
       setUploadError("حجم الصورة يجب ألا يتجاوز 4 ميجابايت");
       return;
@@ -135,12 +191,10 @@ export function StudentForm({
     setUploadError(null);
     setIsUploadingPhoto(true);
 
-    // Show local preview immediately
     const localUrl = URL.createObjectURL(file);
     setPhotoPreview(localUrl);
 
     try {
-      // Compress image client-side to max 400x400 at 82% quality (WebP)
       const compressedFile = await compressImage(file, {
         maxWidth: 400,
         maxHeight: 400,
@@ -153,24 +207,22 @@ export function StudentForm({
         const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, compressedFile);
         const downloadUrl = await getDownloadURL(storageRef);
-        setValue("photoUrl", downloadUrl);
+        setFormData((prev) => ({ ...prev, photoUrl: downloadUrl }));
         setPhotoPreview(downloadUrl);
       } else {
-        // Fallback: convert to base64 Data URL if storage bucket is not configured
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = reader.result as string;
-          setValue("photoUrl", base64);
+          setFormData((prev) => ({ ...prev, photoUrl: base64 }));
           setPhotoPreview(base64);
         };
         reader.readAsDataURL(compressedFile);
       }
     } catch {
-      // If upload failed (e.g. Firebase rules/offline), fallback to base64 data url
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result as string;
-        setValue("photoUrl", base64);
+        setFormData((prev) => ({ ...prev, photoUrl: base64 }));
         setPhotoPreview(base64);
       };
       reader.readAsDataURL(file);
@@ -179,301 +231,527 @@ export function StudentForm({
     }
   };
 
-  const handleFormSubmit = (data: StudentFormData) => {
-    data.finalPrice = calculatedFinalPrice;
-    data.groupPrice = currentGroupPrice;
-    return onSubmit(data);
+  const handleSubmit = async () => {
+    const payload: StudentFormData = {
+      ...formData,
+      discount: Number(formData.discount) || 0,
+      groupPrice: Number(formData.groupPrice) || 0,
+      finalPrice: calculatedFinalPrice,
+    };
+
+    // Client-side validation with Zod
+    const validation = studentSchema.safeParse(payload);
+    if (!validation.success) {
+      const errors: Record<string, string> = {};
+      validation.error.issues.forEach((issue) => {
+        if (issue.path[0]) {
+          errors[issue.path[0] as string] = issue.message;
+        }
+      });
+      setFieldErrors(errors);
+      return { success: false, error: "يرجى التحقق من صحة البيانات المدخلة" };
+    }
+
+    setFieldErrors({});
+
+    if (externalOnSubmit) {
+      try {
+        await externalOnSubmit(validation.data);
+        return { success: true };
+      } catch (err: unknown) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "فشل حفظ بيانات الطالب",
+        };
+      }
+    }
+
+    try {
+      if (isEdit && studentId) {
+        const res = await updateStudentClient(studentId, validation.data);
+        if (!res.success) {
+          return { success: false, error: res.error || "فشل تعديل بيانات الطالب" };
+        }
+        toast.success("تم تحديث بيانات الطالب بنجاح!");
+        queryClient.invalidateQueries({ queryKey: ["students"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        return { success: true };
+      } else {
+        const res = await createStudentClient(validation.data);
+        if (!res.success) {
+          return { success: false, error: res.error || "فشل تسجيل الطالب" };
+        }
+        toast.success("تم تسجيل الطالب وتوليد أكواد الـ QR والباركود بنجاح!");
+        queryClient.invalidateQueries({ queryKey: ["students"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        return { success: true };
+      }
+    } catch {
+      return { success: false, error: "حدث خطأ غير متوقع أثناء حفظ بيانات الطالب" };
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!studentId) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteStudentClient(studentId);
+      if (!res.success) {
+        toast.error(res.error || "فشل حذف الطالب");
+        return;
+      }
+      toast.success("تم نقل الطالب إلى سلة المحذوفات بنجاح");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      router.push("/students");
+    } catch {
+      toast.error("حدث خطأ أثناء محاولة الحذف");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6" dir="rtl">
-      {/* 1. Student Personal & Contact Details */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <User className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">بيانات الطالب الأساسية</CardTitle>
-          </div>
-          <CardDescription>أدخل اسم الطالب ورقم هاتفه والصورة الشخصية.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-6 items-start">
-            {/* Photo Upload Box */}
-            <div className="flex flex-col items-center gap-2 shrink-0">
-              <div className="relative group flex h-28 w-28 items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface hover:border-primary transition-all overflow-hidden">
-                {photoPreview ? (
-                  <Image
-                    src={photoPreview}
-                    alt="صورة الطالب"
-                    fill
-                    sizes="112px"
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-muted p-2 text-center">
-                    <Camera className="h-8 w-8 stroke-[1.5] mb-1" />
-                    <span className="text-[11px] font-medium">صورة الطالب</span>
-                  </div>
-                )}
-
-                <label className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-text">
-                  <Upload className="h-5 w-5 mb-1 text-primary" />
-                  <span className="text-[10px] font-bold">
-                    {photoPreview ? "تغيير الصورة" : "رفع صورة"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                    disabled={isUploadingPhoto || isSubmitting}
-                  />
-                </label>
-              </div>
-
-              {isUploadingPhoto && (
-                <span className="text-[11px] text-primary animate-pulse">جاري الرفع...</span>
-              )}
-              {uploadError && (
-                <span className="text-[11px] text-danger text-center max-w-[140px]">
-                  {uploadError}
-                </span>
-              )}
-              <span className="text-[10px] text-muted">صيغة JPG/PNG (اختياري)</span>
-            </div>
-
-            {/* Name & Phone Fields */}
-            <div className="flex-1 w-full space-y-4">
-              <FormField label="اسم الطالب الرباعي" required error={errors.name?.message}>
-                <Input
-                  placeholder="مثال: أحمد محمود إبراهيم السيد"
-                  {...register("name")}
-                  error={!!errors.name}
-                />
-              </FormField>
-
-              <FormField
-                label="رقم هاتف الطالب (واتساب)"
-                required
-                error={errors.phone?.message}
-                description="يُستخدم في إرسال تقارير الحضور والتنبيهات."
-              >
-                <div className="relative">
-                  <Input
-                    placeholder="01012345678"
-                    {...register("phone")}
-                    error={!!errors.phone}
-                    className="pl-9"
-                    dir="ltr"
-                  />
-                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                </div>
-              </FormField>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Academic Enrollment (Class & Group) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">التسكين الأكاديمي</CardTitle>
-          </div>
-          <CardDescription>اختر الصف الدراسي والمجموعة المناسبة لمواعيد الطالب.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Class */}
-            <FormField label="الصف الدراسي" required error={errors.classId?.message}>
-              <Select {...register("classId")} error={!!errors.classId}>
-                {classes.length === 0 ? (
-                  <option value="">لا توجد صفوف دراسية</option>
-                ) : (
-                  classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))
-                )}
-              </Select>
-            </FormField>
-
-            {/* Group */}
-            <FormField label="المجموعة الدراسية" required error={errors.groupId?.message}>
-              <Select
-                {...register("groupId")}
-                onChange={handleGroupChange}
-                error={!!errors.groupId}
-              >
-                {availableGroups.length === 0 ? (
-                  <option value="">لا توجد مجموعات بهذا الصف - أنشئ مجموعة أولاً</option>
-                ) : (
-                  availableGroups.map((grp) => (
-                    <option key={grp.id} value={grp.id}>
-                      {grp.name} ({grp.price} ج.م)
-                    </option>
-                  ))
-                )}
-              </Select>
-            </FormField>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 3. Parent Details */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">بيانات ولي الأمر</CardTitle>
-          </div>
-          <CardDescription>
-            بيانات التواصل لربط بوابة ولي الأمر وإشعارات الحضور والغياب.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="اسم ولي الأمر" required error={errors.parentName?.message}>
-              <Input
-                placeholder="مثال: محمود إبراهيم السيد (الأب)"
-                {...register("parentName")}
-                error={!!errors.parentName}
+    <div className="max-w-4xl mx-auto" dir="rtl">
+      <EntityForm
+        title={isEdit ? "تعديل بيانات الطالب" : "تسجيل طالب جديد"}
+        description={
+          isEdit
+            ? "تحديث بيانات الاتصال، التسكين في مجموعة أخرى، أو تعديل الخصم الفردي."
+            : "أدخل بيانات الطالب، تسكينه في المجموعة، وإصدار أكواد الدخول وبطاقة الحضور."
+        }
+        icon={Users}
+        iconColor="text-primary"
+        badge={
+          isEdit ? (
+            <Badge variant={formData.status === "active" ? "success" : "danger"} size="sm">
+              {formData.status === "active" ? "نشط" : "محظور"}
+            </Badge>
+          ) : undefined
+        }
+        isEdit={isEdit}
+        onSubmit={handleSubmit}
+        isLoading={externalIsSubmitting || isUploadingPhoto}
+        submitText={isEdit ? "حفظ التعديلات" : "تسجيل الطالب وتوليد الرموز"}
+        cancelHref={isEdit && studentId ? `/students/${studentId}` : "/students"}
+        previewHref="/students"
+        tableHref="/students"
+        previewText="معاينة سجل الطلاب"
+        continueText={isEdit ? "الذهاب لبروفايل الطالب" : "تسجيل طالب آخر"}
+        onContinue={() => {
+          if (isEdit && studentId) {
+            router.push(`/students/${studentId}`);
+          } else {
+            setFormData({
+              name: "",
+              phone: "",
+              classId: defaultClassId || classesList[0]?.id || "",
+              groupId: defaultGroupId || "",
+              parentName: "",
+              parentPhone: "",
+              photoUrl: "",
+              discount: 0,
+              groupPrice: 0,
+              finalPrice: 0,
+              status: "active",
+              blockReason: "",
+            });
+            setPhotoPreview(null);
+            setFieldErrors({});
+          }
+        }}
+        showSuccessModal={true}
+        successModalTitle={isEdit ? "تم تحديث بيانات الطالب بنجاح" : "تم تسجيل الطالب بنجاح"}
+        successModalDescription={
+          isEdit
+            ? "تم حفظ التعديلات الجديدة على بيانات واشتراك الطالب بنجاح."
+            : "تم تسجيل الطالب في المجموعة بنجاح وتوليد أكواد الـ QR والباركود القصير. يمكنك طباعة الكارت فوراً أو تسجيل طالب آخر."
+        }
+        onDelete={isEdit && studentId ? handleDelete : undefined}
+        deleteText="حذف الطالب"
+        isDeleting={isDeleting}
+        columns={2}
+      >
+        {/* Photo Upload Box (Spans 2 cols on mobile/desktop) */}
+        <div className="md:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-5 p-4 rounded-2xl border border-border/80 bg-surface/30">
+          <div className="relative group flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface hover:border-primary transition-all overflow-hidden">
+            {photoPreview ? (
+              <Image
+                src={photoPreview}
+                alt="صورة الطالب"
+                fill
+                sizes="96px"
+                className="object-cover"
               />
-            </FormField>
-
-            <FormField
-              label="رقم هاتف ولي الأمر (واتساب)"
-              required
-              error={errors.parentPhone?.message}
-            >
-              <div className="relative">
-                <Input
-                  placeholder="01112345678"
-                  {...register("parentPhone")}
-                  error={!!errors.parentPhone}
-                  className="pl-9"
-                  dir="ltr"
-                />
-                <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-muted p-2 text-center">
+                <Camera className="h-7 w-7 stroke-[1.5] mb-1" />
+                <span className="text-[10px] font-medium">صورة الطالب</span>
               </div>
-            </FormField>
-          </div>
-        </CardContent>
-      </Card>
+            )}
 
-      {/* 4. Financial Calculation (Group Price, Discount, Final Price) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">الحساب المالي والاشتراك الشهري</CardTitle>
+            <label className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-text">
+              <Upload className="h-5 w-5 mb-1 text-primary" />
+              <span className="text-[10px] font-bold">
+                {photoPreview ? "تغيير الصورة" : "رفع صورة"}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+                disabled={isUploadingPhoto}
+              />
+            </label>
           </div>
-          <CardDescription>
-            احتساب السعر النهائي المستحق على الطالب شهرياً بعد تطبيق الخصم الفردي.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <div className="flex flex-col justify-center text-right space-y-1">
+            <h4 className="text-sm font-bold text-text flex items-center gap-1.5">
+              <User className="h-4 w-4 text-primary" />
+              <span>الصورة الشخصية للطالب (اختياري)</span>
+            </h4>
+            <p className="text-xs text-muted leading-relaxed">
+              تُطبع الصورة على كارت الحضور الذكي لتسهيل التحقق والتعرف البصري السريع على الطالب.
+            </p>
+            {isUploadingPhoto && (
+              <span className="text-xs text-primary font-semibold animate-pulse">
+                جاري رفع الصورة وضغطها...
+              </span>
+            )}
+            {uploadError && (
+              <span className="text-xs text-danger font-semibold">{uploadError}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Student Name */}
+        <Input
+          id="name"
+          name="name"
+          label="اسم الطالب الرباعي"
+          required
+          placeholder="مثال: أحمد محمود إبراهيم السيد"
+          value={formData.name}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, name: e.target.value }));
+            if (fieldErrors.name) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.name;
+                return next;
+              });
+            }
+          }}
+          error={fieldErrors.name}
+          leftIcon={<User className="w-4 h-4 text-slate-400" />}
+          sizeVariant="md"
+        />
+
+        {/* Student Phone */}
+        <Input
+          id="phone"
+          name="phone"
+          label="رقم هاتف الطالب (واتساب)"
+          required
+          placeholder="01012345678"
+          dir="ltr"
+          value={formData.phone}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, phone: e.target.value }));
+            if (fieldErrors.phone) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.phone;
+                return next;
+              });
+            }
+          }}
+          error={fieldErrors.phone}
+          leftIcon={<Phone className="w-4 h-4 text-slate-400" />}
+          sizeVariant="md"
+        />
+
+        {/* Class Selection */}
+        <Select
+          id="classId"
+          name="classId"
+          label="الصف الدراسي"
+          required
+          value={formData.classId}
+          onChange={(e) => {
+            const newClassId = e.target.value;
+            const newGroups = groupsList.filter((g) => g.classId === newClassId);
+            const firstGroup = newGroups[0];
+            setFormData((prev) => ({
+              ...prev,
+              classId: newClassId,
+              groupId: firstGroup ? firstGroup.id : "",
+              groupPrice: firstGroup ? firstGroup.price : 0,
+              finalPrice: firstGroup
+                ? Math.max(0, firstGroup.price - (Number(prev.discount) || 0))
+                : 0,
+            }));
+            if (fieldErrors.classId) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.classId;
+                return next;
+              });
+            }
+          }}
+          error={fieldErrors.classId}
+          sizeVariant="md"
+        >
+          {classesList.length === 0 ? (
+            <option value="">لا توجد صفوف دراسية</option>
+          ) : (
+            classesList.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name}
+              </option>
+            ))
+          )}
+        </Select>
+
+        {/* Group Selection */}
+        <Select
+          id="groupId"
+          name="groupId"
+          label="المجموعة الدراسية"
+          required
+          value={formData.groupId}
+          onChange={handleGroupChange}
+          error={fieldErrors.groupId}
+          sizeVariant="md"
+        >
+          {availableGroups.length === 0 ? (
+            <option value="">لا توجد مجموعات بهذا الصف - أنشئ مجموعة أولاً</option>
+          ) : (
+            availableGroups.map((grp) => (
+              <option key={grp.id} value={grp.id}>
+                {grp.name} ({grp.price} ج.م)
+              </option>
+            ))
+          )}
+        </Select>
+
+        {/* Parent Name */}
+        <Input
+          id="parentName"
+          name="parentName"
+          label="اسم ولي الأمر"
+          required
+          placeholder="مثال: محمود إبراهيم السيد (الأب)"
+          value={formData.parentName}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, parentName: e.target.value }));
+            if (fieldErrors.parentName) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.parentName;
+                return next;
+              });
+            }
+          }}
+          error={fieldErrors.parentName}
+          leftIcon={<Users className="w-4 h-4 text-slate-400" />}
+          sizeVariant="md"
+        />
+
+        {/* Parent Phone */}
+        <Input
+          id="parentPhone"
+          name="parentPhone"
+          label="رقم هاتف ولي الأمر (واتساب)"
+          required
+          placeholder="01112345678"
+          dir="ltr"
+          value={formData.parentPhone}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, parentPhone: e.target.value }));
+            if (fieldErrors.parentPhone) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.parentPhone;
+                return next;
+              });
+            }
+          }}
+          error={fieldErrors.parentPhone}
+          leftIcon={<Phone className="w-4 h-4 text-slate-400" />}
+          sizeVariant="md"
+        />
+
+        {/* Financial Section (Spans 2 cols) */}
+        <div className="md:col-span-2 space-y-3 pt-2">
+          <div className="flex items-center gap-2 border-b border-border pb-2">
+            <Calculator className="h-4 w-4 text-primary" />
+            <h3 className="font-bold text-sm text-text">الحساب المالي والاشتراك الشهري</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             {/* Base Group Price */}
             <div>
               <label className="text-xs font-semibold text-muted block mb-1.5">
                 سعر المجموعة الأساسي
               </label>
-              <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-surface/60 px-3 text-sm font-bold text-text">
-                <span>{currentGroupPrice} ج.م</span>
+              <div className="flex h-9.5 items-center justify-between rounded-md border border-border bg-surface/60 px-3 text-sm font-bold text-text">
+                <span>{formData.groupPrice || 0} ج.م</span>
                 <span className="text-[11px] text-muted">شهرياً</span>
               </div>
             </div>
 
             {/* Individual Discount */}
-            <FormField
+            <Input
+              id="discount"
+              name="discount"
+              type="number"
+              min="0"
+              step="any"
               label="الخصم الفردي للطالب (ج.م)"
-              error={errors.discount?.message}
-              description="أدخل 0 في حالة عدم وجود خصم خاص."
-            >
-              <div className="relative">
-                <Input
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0"
-                  {...register("discount", { valueAsNumber: true })}
-                  error={!!errors.discount}
-                  className="pl-9 font-semibold"
-                />
-                <DollarSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              </div>
-            </FormField>
+              placeholder="0"
+              value={formData.discount !== undefined ? formData.discount.toString() : "0"}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setFormData((prev) => ({
+                  ...prev,
+                  discount: val,
+                  finalPrice: Math.max(0, (Number(prev.groupPrice) || 0) - val),
+                }));
+                if (fieldErrors.discount) {
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.discount;
+                    return next;
+                  });
+                }
+              }}
+              error={fieldErrors.discount}
+              leftIcon={<DollarSign className="w-4 h-4 text-slate-400" />}
+              sizeVariant="md"
+            />
 
             {/* Final Price Result */}
             <div>
               <label className="text-xs font-bold text-primary block mb-1.5">
                 السعر النهائي المستحق (شهرياً)
               </label>
-              <div className="flex h-10 items-center justify-between rounded-lg border-2 border-primary/30 bg-primary/10 px-3.5 text-sm font-black text-primary">
+              <div className="flex h-9.5 items-center justify-between rounded-md border-2 border-primary/30 bg-primary/10 px-3.5 text-sm font-black text-primary">
                 <span>{calculatedFinalPrice} ج.م</span>
-                {discountValue > 0 && (
+                {Number(formData.discount) > 0 && (
                   <Badge variant="success" size="sm">
-                    خصم {discountValue} ج.م
+                    خصم {formData.discount} ج.م
                   </Badge>
                 )}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* 5. Status & Block Management */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">حالة حساب الطالب</CardTitle>
+        {/* Status & Block Reason (Spans 2 cols) */}
+        <div className="md:col-span-2 space-y-3 pt-2">
+          <div className="flex items-center gap-2 border-b border-border pb-2">
+            <AlertCircle className="h-4 w-4 text-primary" />
+            <h3 className="font-bold text-sm text-text">حالة حساب الطالب</h3>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="حالة الطالب" required error={errors.status?.message}>
-              <Select {...register("status")} error={!!errors.status}>
-                <option value="active">نشط (حساب مفعّل ويُسجل له حضور وامتحانات)</option>
-                <option value="blocked">محظور (ممنوع من تسجيل الحضور ودخول الحصص)</option>
-              </Select>
-            </FormField>
 
-            {currentStatus === "blocked" && (
-              <FormField
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              id="status"
+              name="status"
+              label="حالة الطالب"
+              value={formData.status}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  status: e.target.value as "active" | "blocked",
+                }))
+              }
+              searchable={false}
+              sizeVariant="md"
+            >
+              <option value="active">نشط (حساب مفعّل ويُسجل له حضور وامتحانات)</option>
+              <option value="blocked">محظور (ممنوع من تسجيل الحضور ودخول الحصص)</option>
+            </Select>
+
+            {formData.status === "blocked" && (
+              <Input
+                id="blockReason"
+                name="blockReason"
                 label="سبب الحظر"
-                error={errors.blockReason?.message}
-                description="سبب إيقاف الطالب مؤقتاً."
-              >
-                <Input
-                  placeholder="مثال: عدم سداد المصروفات، سلوك غير لائق..."
-                  {...register("blockReason")}
-                  error={!!errors.blockReason}
-                />
-              </FormField>
+                placeholder="مثال: عدم سداد المصروفات، سلوك غير لائق..."
+                value={formData.blockReason || ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, blockReason: e.target.value }))}
+                error={fieldErrors.blockReason}
+                sizeVariant="md"
+              />
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Submit Buttons */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-        <Link href="/students">
-          <Button type="button" variant="secondary" disabled={isSubmitting}>
-            إلغاء
-          </Button>
-        </Link>
-        <Button
-          type="submit"
-          isLoading={isSubmitting || isUploadingPhoto}
-          className="font-bold min-w-[150px]"
-        >
-          {isEdit ? "حفظ التعديلات" : "إضافة الطالب وتوليد الرموز"}
-        </Button>
-      </div>
-    </form>
+        {/* Live Preview Section (Spans 2 cols) */}
+        {formData.name.trim() && (
+          <div className="md:col-span-2 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                <IdCard className="w-4 h-4" />
+                <span>معاينة فورية لكارت الطالب (Live Preview)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedClassName && (
+                  <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-xs font-semibold text-text">
+                    <Layers className="h-3 w-3 text-muted" />
+                    {selectedClassName}
+                  </span>
+                )}
+                {selectedGroupName && (
+                  <span className="inline-flex items-center rounded bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">
+                    {selectedGroupName}
+                  </span>
+                )}
+                <Badge variant={formData.status === "active" ? "success" : "danger"} size="sm">
+                  {formData.status === "active" ? "نشط" : "محظور"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 border-t border-primary/10 pt-3">
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary font-black overflow-hidden text-base">
+                {photoPreview ? (
+                  <Image
+                    src={photoPreview}
+                    alt={formData.name}
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span>{formData.name.charAt(0)}</span>
+                )}
+              </div>
+
+              <div className="flex flex-col text-right">
+                <h4 className="font-bold text-sm text-text">{formData.name}</h4>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted mt-0.5">
+                  <span>
+                    هاتف: <strong className="font-mono text-text">{formData.phone || "---"}</strong>
+                  </span>
+                  <span>
+                    ولي الأمر: <strong className="text-text">{formData.parentName || "---"}</strong>{" "}
+                    ({formData.parentPhone || "---"})
+                  </span>
+                  <span>
+                    الاشتراك:{" "}
+                    <strong className="text-primary font-bold">{calculatedFinalPrice} ج.م</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </EntityForm>
+    </div>
   );
 }
+
+export default StudentForm;

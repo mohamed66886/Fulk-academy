@@ -155,6 +155,7 @@ export interface SessionActiveDetails {
     name: string;
     phone: string;
     status: "active" | "blocked";
+    qrToken?: string;
   }>;
 }
 
@@ -198,6 +199,7 @@ export async function getOrCreateAttendanceSession(groupId: string): Promise<{
       name: (d.data().name as string) || "",
       phone: (d.data().phone as string) || "",
       status: (d.data().status as "active" | "blocked") || "active",
+      qrToken: (d.data().qrToken as string) || "",
     }));
 
     registeredStudents.sort((a, b) => a.name.localeCompare(b.name, "ar"));

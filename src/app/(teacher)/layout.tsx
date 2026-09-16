@@ -9,7 +9,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
 
   return (
-    <div className="flex min-h-screen bg-background text-text" dir="rtl">
+    <div className="flex min-h-screen bg-[#f6f1f1] text-text" dir="rtl">
       {/* Sidebar: Desktop Sticky & Mobile Drawer */}
       <Sidebar
         items={teacherNavItems}
@@ -25,8 +25,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((prev) => !prev)}
           onOpenMobile={() => setIsMobileOpen(true)}
-          userName="أ. محمد رشاد"
-          userRole="مدرس"
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">

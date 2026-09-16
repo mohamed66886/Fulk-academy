@@ -1,47 +1,61 @@
 import * as React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getGroupById, getClassesForSelect } from "@/lib/actions/groups";
-import { EditGroupForm } from "./edit-form";
+import { getGroupById } from "@/lib/actions/groups";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Edit2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { GroupForm } from "../../group-form";
 
-interface PageProps {
+export const dynamic = "force-dynamic";
+
+interface EditGroupPageProps {
   params: {
     id: string;
   };
 }
 
-export default async function EditGroupPage({ params }: PageProps) {
-  const [groupRes, classes] = await Promise.all([getGroupById(params.id), getClassesForSelect()]);
+export default async function EditGroupPage({ params }: EditGroupPageProps) {
+  const result = await getGroupById(params.id);
 
-  if (!groupRes.success || !groupRes.groupData) {
+  if (!result.success || !result.groupData) {
     notFound();
   }
 
-  const { group } = groupRes.groupData;
+  const { group } = result.groupData;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12" dir="rtl">
-      {/* Header & Back Link */}
-      <div className="flex items-center gap-3 border-b border-border pb-4">
+    <div className="space-y-6 pb-12" dir="rtl">
+      {/* Back navigation */}
+      <div className="max-w-4xl mx-auto flex items-center justify-between">
         <Link href={`/groups/${group.id}`}>
-          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-muted hover:text-text">
-            <ArrowRight className="h-5 w-5" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs font-bold text-muted hover:text-text"
+          >
+            <ArrowRight className="h-4 w-4" />
+            <span>العودة لتفاصيل المجموعة ({group.name})</span>
           </Button>
         </Link>
-        <div>
-          <div className="flex items-center gap-2">
-            <Edit2 className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold text-text">تعديل المجموعة: {group.name}</h1>
-          </div>
-          <p className="text-xs text-muted mt-0.5">
-            قم بتحديث مواعيد الحصص أو السعر الافتراضي أو إعدادات السنتر.
-          </p>
-        </div>
       </div>
 
-      <EditGroupForm group={group} classes={classes} />
+      {/* Edit Form */}
+      <GroupForm
+        isEdit={true}
+        initialData={{
+          id: group.id,
+          name: group.name,
+          classId: group.classId,
+          price: group.price,
+          hasCenter: group.hasCenter,
+          centerSessionPrice: group.centerSessionPrice,
+          status: group.status,
+          schedule:
+            group.schedule && group.schedule.length > 0
+              ? group.schedule
+              : [{ day: "saturday", startTime: "16:00", endTime: "18:00" }],
+        }}
+      />
     </div>
   );
 }

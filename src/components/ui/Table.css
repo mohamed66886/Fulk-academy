@@ -1,0 +1,594 @@
+/* =========================================================================
+   ERP DataTable — Smart, Responsive & Flat Design System
+   Sharp rectangular edges (No border-radius), adaptive spacing,
+   full RTL support, and cohesive light/dark modes.
+   ========================================================================= */
+
+.erp-datatable {
+  --erp-surface: #ffffff;
+  --erp-surface-alt: #f8fafc;
+  /* Very subtle slate-50 for zebra & headers */
+  --erp-surface-hover: #f1f5f9;
+  /* Slate 100 for row hover */
+  --erp-header-bg: #dbeafe;
+  /* Solid light blue header (Tailwind blue-100) */
+  --erp-header-text: #1e3a8a;
+  /* Solid dark blue header text (Tailwind blue-900) */
+  --erp-header-border: #bfdbfe;
+  /* Matching light blue border (Tailwind blue-200) */
+  --erp-border: #e2e8f0;
+  /* Slate 200 */
+  --erp-border-subtle: #f1f5f9;
+  /* Slate 100 */
+
+  --erp-text: #0f172a;
+  /* Slate 900 */
+  --erp-text-muted: #64748b;
+  /* Slate 500 */
+
+  /* Spacing scale — used across toolbar, cells & pagination so density stays consistent */
+  --erp-space-1: 4px;
+  --erp-space-2: 8px;
+  --erp-space-3: 12px;
+  --erp-space-4: 16px;
+  --erp-cell-padding-y: 10px;
+  --erp-cell-padding-x: 14px;
+
+  /* Primary accents */
+  --erp-accent: #2563eb;
+
+  /* Button specific colors */
+  --erp-export: #059669;
+  /* Emerald */
+  --erp-export-bg: #ecfdf5;
+  --erp-export-hover: #d1fae5;
+
+  --erp-import: #2563eb;
+  /* Blue */
+  --erp-import-bg: #eff6ff;
+  --erp-import-hover: #dbeafe;
+
+  --erp-print: #7c3aed;
+  /* Violet */
+  --erp-print-bg: #f5f3ff;
+  --erp-print-hover: #ede9fe;
+
+  --erp-template: #d97706;
+  /* Amber */
+  --erp-template-bg: #fffbeb;
+  --erp-template-hover: #fef3c7;
+
+  --erp-radius: 0px;
+
+  font-family:
+    "IBM Plex Sans Arabic",
+    "Cairo",
+    "Tajawal",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* ---------- container ---------- */
+.erp-datatable-card {
+  background-color: var(--erp-surface);
+  border-radius: 0px !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.erp-datatable-body {
+  background-color: var(--erp-surface);
+  border-radius: 0px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+/* Custom smooth scrollbar for tables when wide */
+.erp-datatable-body::-webkit-scrollbar,
+div.rdt_TableWrapper::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.erp-datatable-body::-webkit-scrollbar-track,
+div.rdt_TableWrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0px;
+}
+
+.erp-datatable-body::-webkit-scrollbar-thumb,
+div.rdt_TableWrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 0px;
+  transition: background-color 0.2s;
+}
+
+.erp-datatable-body::-webkit-scrollbar-thumb:hover,
+div.rdt_TableWrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ---------- toolbar ---------- */
+.erp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--erp-space-2);
+  padding-bottom: var(--erp-space-3);
+}
+
+.erp-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px var(--erp-space-3);
+  border-radius: 0px !important;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.erp-toolbar-btn:active {
+  transform: scale(0.98);
+}
+
+.erp-toolbar-btn:focus-visible,
+.erp-pagination-btn:focus-visible,
+div.rdt_TableCol_Sortable:focus-visible {
+  outline: 2px solid var(--erp-accent);
+  outline-offset: 2px;
+}
+
+.erp-toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  stroke-width: 2.2px;
+}
+
+.erp-btn-export {
+  color: var(--erp-export);
+  background-color: var(--erp-export-bg);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+.erp-btn-export:hover {
+  background-color: var(--erp-export-hover);
+  border-color: rgba(5, 150, 105, 0.45);
+}
+
+.erp-btn-import {
+  color: var(--erp-import);
+  background-color: var(--erp-import-bg);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.erp-btn-import:hover {
+  background-color: var(--erp-import-hover);
+  border-color: rgba(37, 99, 235, 0.45);
+}
+
+.erp-btn-print {
+  color: var(--erp-print);
+  background-color: var(--erp-print-bg);
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+.erp-btn-print:hover {
+  background-color: var(--erp-print-hover);
+  border-color: rgba(124, 58, 237, 0.45);
+}
+
+.erp-btn-template {
+  color: var(--erp-template);
+  background-color: var(--erp-template-bg);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+.erp-btn-template:hover {
+  background-color: var(--erp-template-hover);
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+.erp-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- react-data-table-component overrides ---------- */
+div.rdt_Table {
+  background-color: transparent !important;
+  min-width: 100% !important;
+  border-radius: 0px !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+div.rdt_TableWrapper {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-width: 100% !important;
+  border-radius: 0px !important;
+  border: none !important;
+  box-shadow: none !important;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+div.rdt_TableHead {
+  border-radius: 0px !important;
+}
+
+div.rdt_TableHeadRow {
+  background-color: var(--erp-header-bg, #dbeafe) !important;
+  color: var(--erp-header-text, #1e3a8a) !important;
+  min-height: 48px !important;
+  height: auto !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  border-bottom: 2px solid var(--erp-header-border, #bfdbfe) !important;
+  letter-spacing: 0.2px;
+  border-radius: 0px !important;
+  margin-bottom: 0px !important;
+  align-items: stretch !important;
+}
+
+div.rdt_TableCol {
+  padding: var(--erp-cell-padding-y) var(--erp-cell-padding-x) !important;
+  color: var(--erp-header-text, #1e3a8a) !important;
+  text-align: center;
+  overflow: visible !important;
+  white-space: normal !important;
+  height: auto !important;
+  min-height: 48px !important;
+}
+
+div.rdt_TableCol .rdt_columnText {
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: unset !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+
+div.rdt_TableCol,
+div.rdt_TableCol > div,
+div.rdt_TableCol_Sortable,
+div.rdt_TableCol_Sortable > div {
+  color: var(--erp-header-text, #1e3a8a) !important;
+}
+
+div.rdt_TableCol_Sortable {
+  cursor: pointer;
+  user-select: none;
+  overflow: visible !important;
+  white-space: normal !important;
+  height: 100% !important;
+}
+
+div.rdt_TableCol_Sortable span,
+div.rdt_TableCol_Sortable span[aria-label],
+div.rdt_TableCol_Sortable svg {
+  color: var(--erp-header-text, #1e3a8a) !important;
+}
+
+/* rows: connected tabular rows, subtle zebra, no floating gaps, 0 border-radius */
+div.rdt_TableRow {
+  background-color: transparent !important;
+  color: var(--erp-text);
+  border-bottom: 1px solid var(--erp-border-subtle, #f1f5f9) !important;
+  min-height: 48px !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: background-color 0.12s ease;
+  border-radius: 0px !important;
+  margin-bottom: 0px !important;
+}
+
+div.rdt_TableRow:nth-child(even) {
+  background-color: var(--erp-surface-alt) !important;
+}
+
+div.rdt_TableRow:hover {
+  background-color: var(--erp-surface-hover) !important;
+  cursor: pointer;
+}
+
+div.rdt_TableCell {
+  padding: var(--erp-cell-padding-y) var(--erp-cell-padding-x) !important;
+  font-size: 13.5px;
+  overflow: visible !important;
+  /* never clip cell content — dropdowns/tooltips stay visible */
+  text-align: center;
+}
+
+/* Numeric/id/date columns read better with tabular figures — keeps columns aligned */
+div.rdt_TableCell[data-column-id] span[dir="ltr"],
+div.rdt_TableCell span.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Totals / Footer Row ---------- */
+div.rdt_footer {
+  background-color: transparent !important;
+  border-top: none !important;
+  margin-top: 0px !important;
+  border-radius: 0px !important;
+}
+
+div.rdt_footerRow {
+  background-color: var(--erp-surface-alt, #f8fafc) !important;
+  color: #0f172a !important;
+  min-height: 48px !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  border-top: 2px solid var(--erp-border, #cbd5e1) !important;
+  border-bottom: 1px solid var(--erp-border, #e2e8f0) !important;
+  border-radius: 0px !important;
+  margin-bottom: 0px !important;
+}
+
+div.rdt_footerCell {
+  padding: 10px 14px !important;
+  font-weight: 800 !important;
+  font-size: 13.5px !important;
+  color: #0f172a !important;
+  text-align: center;
+  justify-content: center;
+}
+
+/* ---------- pagination ---------- */
+nav.rdt_Pagination {
+  background-color: transparent !important;
+  color: var(--erp-text-muted) !important;
+  min-height: 50px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-top: 1px solid var(--erp-border, #e2e8f0) !important;
+  padding: 10px 8px 6px 8px !important;
+  border-radius: 0px !important;
+  overflow: visible !important;
+}
+
+.erp-pagination-btn {
+  padding: 6px 8px;
+  border-radius: 0px !important;
+  color: var(--erp-text-muted);
+  background: transparent !important;
+  border: none !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.erp-pagination-btn:hover:not(:disabled) {
+  background-color: var(--erp-surface-hover) !important;
+  color: var(--erp-text);
+  border: none !important;
+}
+
+.erp-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- empty state ---------- */
+.erp-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 56px 16px;
+  color: var(--erp-text-muted);
+  border-radius: 0px !important;
+}
+
+.erp-empty-state svg {
+  width: 48px;
+  height: 48px;
+  color: #cbd5e1;
+  stroke-width: 1.5px;
+}
+
+.erp-empty-state span {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* ---------- Adaptive spacing on narrow viewports ---------- */
+@media (max-width: 640px) {
+  .erp-datatable {
+    --erp-cell-padding-x: 10px;
+    --erp-cell-padding-y: 8px;
+  }
+
+  .erp-toolbar-btn {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+
+  div.rdt_TableHeadRow {
+    font-size: 12px !important;
+    min-height: 42px !important;
+  }
+}
+
+/* ---------- Dark Mode Support ---------- */
+.dark .erp-datatable {
+  --erp-surface: #0f172a;
+  /* Slate 900 */
+  --erp-surface-alt: #142033;
+  /* Slate 900+ subtle contrast */
+  --erp-surface-hover: #1e293b;
+  /* Slate 800 */
+  --erp-border: #334155;
+  /* Slate 700 */
+  --erp-border-subtle: #1e293b;
+  /* Slate 800 */
+  --erp-text: #f8fafc;
+  --erp-text-muted: #94a3b8;
+  --erp-header-bg: #dbeafe;
+  /* Solid light blue header */
+  --erp-header-text: #1e3a8a;
+  /* Solid dark blue header text */
+  --erp-header-border: #93c5fd;
+  /* Light blue border */
+
+  /* Button specific dark colors */
+  --erp-export: #34d399;
+  /* Emerald 400 */
+  --erp-export-bg: rgba(6, 78, 59, 0.35);
+  --erp-export-hover: rgba(6, 95, 70, 0.55);
+
+  --erp-import: #60a5fa;
+  /* Blue 400 */
+  --erp-import-bg: rgba(30, 58, 138, 0.35);
+  --erp-import-hover: rgba(30, 64, 175, 0.55);
+
+  --erp-print: #a78bfa;
+  /* Violet 400 */
+  --erp-print-bg: rgba(76, 29, 149, 0.35);
+  --erp-print-hover: rgba(91, 33, 182, 0.55);
+
+  --erp-template: #fbbf24;
+  /* Amber 400 */
+  --erp-template-bg: rgba(120, 53, 15, 0.35);
+  --erp-template-hover: rgba(146, 64, 14, 0.55);
+
+  scrollbar-color: #475569 #0f172a;
+}
+
+.dark .erp-datatable-card {
+  background-color: var(--erp-surface);
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dark .erp-datatable-body {
+  background-color: var(--erp-surface);
+}
+
+.dark .erp-btn-export {
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.dark .erp-btn-import {
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.dark .erp-btn-print {
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+.dark .erp-btn-template {
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.dark div.rdt_TableHead {
+  border-radius: 0px !important;
+}
+
+.dark div.rdt_TableHeadRow {
+  background-color: var(--erp-header-bg, #dbeafe) !important;
+  color: var(--erp-header-text, #1e3a8a) !important;
+  border-bottom: 2px solid var(--erp-header-border, #93c5fd) !important;
+  border-radius: 0px !important;
+}
+
+.dark div.rdt_TableCol,
+.dark div.rdt_TableCol > div,
+.dark div.rdt_TableCol_Sortable,
+.dark div.rdt_TableCol_Sortable > div,
+.dark div.rdt_TableCol_Sortable span,
+.dark div.rdt_TableCol_Sortable span[aria-label],
+.dark div.rdt_TableCol_Sortable svg {
+  color: var(--erp-header-text, #1e3a8a) !important;
+}
+
+.dark div.rdt_TableRow {
+  color: #f8fafc !important;
+  border-bottom: 1px solid #1e293b !important;
+  border-radius: 0px !important;
+}
+
+.dark div.rdt_TableRow:nth-child(even) {
+  background-color: #142033 !important;
+}
+
+.dark div.rdt_TableRow:hover {
+  background-color: #1e293b !important;
+}
+
+.dark div.rdt_footerRow {
+  background-color: #142033 !important;
+  color: #f8fafc !important;
+  border-top: 2px solid #334155 !important;
+  border-bottom: 1px solid #334155 !important;
+  border-radius: 0px !important;
+}
+
+.dark div.rdt_footerCell {
+  color: #f8fafc !important;
+}
+
+.dark .erp-empty-state svg {
+  color: #475569;
+}
+
+.dark .erp-empty-state span {
+  color: #94a3b8;
+}
+
+.dark nav.rdt_Pagination {
+  border-top-color: #334155 !important;
+}
+
+.dark .erp-pagination-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8;
+  border-radius: 0px !important;
+}
+
+.dark .erp-pagination-btn:hover:not(:disabled) {
+  background-color: #1e293b !important;
+  color: #f8fafc;
+  border: none !important;
+}
+
+/* ---------- TableActions Dropdown Styling ---------- */
+.table-actions-dropdown {
+  font-family:
+    var(--font-cairo),
+    "Cairo",
+    system-ui,
+    -apple-system,
+    sans-serif !important;
+}
+
+.table-actions-dropdown button,
+.table-actions-dropdown span {
+  font-family:
+    var(--font-cairo),
+    "Cairo",
+    system-ui,
+    -apple-system,
+    sans-serif !important;
+}

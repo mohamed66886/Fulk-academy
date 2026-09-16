@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { storage } from "@/lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { compressImage } from "@/lib/utils/image-compression";
+import { useAuthStore } from "@/stores";
 
 const ENTITY_LABELS: Record<
   string,
@@ -145,6 +146,11 @@ export default function SettingsPage() {
           setSubject(res.profile.subject || "");
           setPhotoUrl(res.profile.photoUrl);
           setSignatureUrl(res.profile.signatureUrl);
+          // Sync with persistent cache in useAuthStore
+          useAuthStore.getState().updateProfile({
+            name: res.profile.name,
+            photoUrl: res.profile.photoUrl,
+          });
         }
       } catch {
         toast.error("فشل جلب بيانات المدرس");
@@ -181,6 +187,8 @@ export default function SettingsPage() {
         await uploadBytes(storageRef, compressed);
         const downloadUrl = await getDownloadURL(storageRef);
         setPhotoUrl(downloadUrl);
+        // Instant caching update
+        useAuthStore.getState().updateProfile({ photoUrl: downloadUrl });
         toast.success("تم رفع الصورة بنجاح وتجهيزها للحفظ");
       } else {
         // Local preview fallback
@@ -262,6 +270,11 @@ export default function SettingsPage() {
         if (profile) {
           setProfile({ ...profile, name, phone, subject, photoUrl, signatureUrl });
         }
+        // Update persistent cache so Header and all pages update immediately
+        useAuthStore.getState().updateProfile({
+          name,
+          photoUrl,
+        });
       } else {
         toast.error(res.error || "فشل حفظ البيانات");
       }

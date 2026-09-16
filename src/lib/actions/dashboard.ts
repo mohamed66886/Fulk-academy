@@ -16,6 +16,21 @@ export interface TodaySessionItem {
   studentCount: number;
 }
 
+export interface WeeklyAttendancePoint {
+  day: string;
+  date: string;
+  presentCount: number;
+  isToday: boolean;
+}
+
+export interface ClassDistributionItem {
+  classId: string;
+  className: string;
+  studentCount: number;
+  percentage: number;
+  color: string;
+}
+
 export interface DashboardData {
   cairoDate: ReturnType<typeof getCairoCurrentDate>;
   teacherName: string;
@@ -27,6 +42,8 @@ export interface DashboardData {
     duePaymentsCount: number;
   };
   todaySessions: TodaySessionItem[];
+  weeklyAttendance: WeeklyAttendancePoint[];
+  classDistribution: ClassDistributionItem[];
 }
 
 export async function getTeacherDashboardData(): Promise<{
@@ -196,6 +213,98 @@ export async function getTeacherDashboardData(): Promise<{
         // 6. Sort sessions ascending by start time (e.g. 14:00 before 16:30)
         todaySessions.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
+        // 7. Calculate Weekly Attendance (last 7 days in Egypt)
+        const last7Days: { dateStr: string; dayName: string; isToday: boolean }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Africa/Cairo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).formatToParts(d);
+          const year = parts.find((p) => p.type === "year")?.value || "";
+          const month = parts.find((p) => p.type === "month")?.value || "";
+          const day = parts.find((p) => p.type === "day")?.value || "";
+          const dateStr = `${year}-${month}-${day}`;
+
+          const dayName = new Intl.DateTimeFormat("ar-EG", {
+            timeZone: "Africa/Cairo",
+            weekday: "short",
+          }).format(d);
+
+          last7Days.push({
+            dateStr,
+            dayName,
+            isToday: i === 0,
+          });
+        }
+
+        const dateStrings = last7Days.map((d) => d.dateStr);
+        const attendanceByDate: Record<string, number> = {};
+        try {
+          const weeklySessionsSnap = await teacherRef
+            .collection("attendanceSessions")
+            .where("date", "in", dateStrings)
+            .get();
+
+          weeklySessionsSnap.docs.forEach((doc) => {
+            const data = doc.data();
+            const dStr = (data.date as string) || "";
+            const count = (data.presentCount as number) || 0;
+            attendanceByDate[dStr] = (attendanceByDate[dStr] || 0) + count;
+          });
+        } catch {
+          // If query fails or empty
+        }
+
+        const weeklyAttendance: WeeklyAttendancePoint[] = last7Days.map((d) => ({
+          day: d.dayName,
+          date: d.dateStr,
+          presentCount: attendanceByDate[d.dateStr] || (d.isToday ? todayAttendance : 0),
+          isToday: d.isToday,
+        }));
+
+        // 8. Calculate Students Distribution by Class (Light Blue, Green, Orange, Yellow)
+        const CLASS_COLORS = ["#0EA5E9", "#10B981", "#F97316", "#EAB308"];
+        const classDistribution: ClassDistributionItem[] = [];
+
+        if (classesSnap.docs.length > 0) {
+          const counts = await Promise.all(
+            classesSnap.docs.map(async (doc, index) => {
+              let count = 0;
+              try {
+                const snap = await teacherRef
+                  .collection("students")
+                  .where("classId", "==", doc.id)
+                  .where("status", "==", "active")
+                  .where("deletedAt", "==", null)
+                  .count()
+                  .get();
+                count = snap.data().count;
+              } catch {
+                count = 0;
+              }
+              return {
+                classId: doc.id,
+                className: (doc.data().name as string) || "صف دراسي",
+                studentCount: count,
+                color: CLASS_COLORS[index % CLASS_COLORS.length]!,
+              };
+            })
+          );
+
+          const totalClassStudents =
+            counts.reduce((acc, c) => acc + c.studentCount, 0) || totalStudents || 1;
+          classDistribution.push(
+            ...counts.map((c) => ({
+              ...c,
+              percentage: Math.round((c.studentCount / totalClassStudents) * 100),
+            }))
+          );
+        }
+
         return {
           success: true,
           data: {
@@ -209,6 +318,8 @@ export async function getTeacherDashboardData(): Promise<{
               duePaymentsCount,
             },
             todaySessions,
+            weeklyAttendance,
+            classDistribution,
           },
         };
       }

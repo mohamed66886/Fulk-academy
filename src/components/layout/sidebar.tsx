@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -14,10 +15,8 @@ import {
   IdCard,
   UserCheck,
   Settings,
-  ChevronDown,
   ChevronLeft,
   X,
-  Compass,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -128,27 +127,22 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const pathname = usePathname();
-  const [openSubMenus, setOpenSubMenus] = React.useState<Record<string, boolean>>({});
+  const [openSubMenu, setOpenSubMenu] = React.useState<string | null>(null);
 
   // Auto-expand sub-menu if current route matches one of its sub-items
   React.useEffect(() => {
-    items.forEach((item) => {
-      if (item.subItems) {
-        const isChildActive = item.subItems.some(
-          (sub) => pathname === sub.href || pathname.startsWith(`${sub.href}/`)
-        );
-        if (isChildActive) {
-          setOpenSubMenus((prev) => ({ ...prev, [item.label]: true }));
-        }
-      }
-    });
+    const activeItem = items.find(
+      (item) =>
+        item.subItems &&
+        item.subItems.some((sub) => pathname === sub.href || pathname.startsWith(`${sub.href}/`))
+    );
+    if (activeItem) {
+      setOpenSubMenu(activeItem.label);
+    }
   }, [pathname, items]);
 
   const toggleSubMenu = (label: string) => {
-    setOpenSubMenus((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
+    setOpenSubMenu((prev) => (prev === label ? null : label));
   };
 
   const renderContent = (isMobile: boolean = false) => {
@@ -159,30 +153,36 @@ export function Sidebar({
         {/* Sidebar Header / Logo */}
         <div
           className={cn(
-            "flex h-24 items-center border-b border-[#4d5766] px-4 transition-all",
-            isCollapsed ? "justify-center" : "justify-between"
+            "relative flex h-20 items-center justify-center bg-white border-b border-gray-200 px-4 transition-all",
+            isCollapsed && "px-2"
           )}
         >
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 font-bold text-white hover:opacity-90 w-full justify-center"
+            className="flex items-center justify-center w-full h-full group"
             onClick={isMobile ? onCloseMobile : undefined}
+            title="فُلك أكاديمي"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-sm">
-              <Compass className="h-7 w-7" />
+            <div className="relative flex items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="فُلك أكاديمي"
+                width={180}
+                height={55}
+                className={cn(
+                  "object-contain transition-transform duration-200 group-hover:scale-105",
+                  isCollapsed ? "h-9 w-auto max-w-[50px]" : "h-12 w-auto max-w-[170px]"
+                )}
+                priority
+              />
             </div>
-            {!isCollapsed && (
-              <div className="flex flex-col">
-                <span className="text-xl font-bold tracking-tight">فُلك أكاديمي</span>
-              </div>
-            )}
           </Link>
 
           {isMobile && (
             <button
               type="button"
               onClick={onCloseMobile}
-              className="rounded-lg p-1 text-gray-300 hover:bg-[#4d5766] hover:text-white"
+              className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
               aria-label="إغلاق القائمة"
             >
               <X className="h-5 w-5" />
@@ -195,7 +195,7 @@ export function Sidebar({
           {items.map((item) => {
             const Icon = item.icon;
             const hasSub = !!item.subItems && item.subItems.length > 0;
-            const isSubOpen = !!openSubMenus[item.label];
+            const isSubOpen = openSubMenu === item.label;
 
             const isDirectActive = item.href
               ? pathname === item.href ||
@@ -231,17 +231,26 @@ export function Sidebar({
                       {!isCollapsed && <span>{item.label}</span>}
                     </div>
 
-                    {!isCollapsed &&
-                      (isSubOpen ? (
-                        <ChevronDown className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <ChevronLeft className="h-4 w-4 shrink-0" />
-                      ))}
+                    {!isCollapsed && (
+                      <ChevronLeft
+                        className={cn(
+                          "h-4 w-4 shrink-0 transition-transform duration-300 ease-in-out",
+                          isSubOpen && "-rotate-90"
+                        )}
+                      />
+                    )}
                   </button>
 
-                  {/* Sub-items dropdown */}
-                  {!isCollapsed && isSubOpen && (
-                    <div className="bg-[#353c46]">
+                  {/* Sub-items dropdown with accordion animation */}
+                  <div
+                    className={cn(
+                      "grid transition-all duration-300 ease-in-out bg-[#353c46]",
+                      !isCollapsed && isSubOpen
+                        ? "grid-rows-[1fr] opacity-100"
+                        : "grid-rows-[0fr] opacity-0"
+                    )}
+                  >
+                    <div className="overflow-hidden">
                       {item.subItems!.map((sub) => {
                         const isSubActive =
                           pathname === sub.href || pathname.startsWith(`${sub.href}/`);
@@ -253,7 +262,7 @@ export function Sidebar({
                             className={cn(
                               "flex items-center px-4 py-2.5 text-sm transition-colors pr-12",
                               isSubActive
-                                ? "text-white font-semibold"
+                                ? "text-white font-semibold bg-white/5"
                                 : "text-gray-300 hover:bg-[#4a5361] hover:text-white"
                             )}
                           >
@@ -262,7 +271,7 @@ export function Sidebar({
                         );
                       })}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             }

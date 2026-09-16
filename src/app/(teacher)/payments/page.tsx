@@ -105,7 +105,7 @@ export default function PaymentsPage() {
     } else if (queryLoading && students.length === 0) {
       setLoading(true);
     }
-  }, [paymentsQueryData, queryLoading]);
+  }, [paymentsQueryData, queryLoading, students.length]);
 
   // Editable paid amount state per student
   const [editingAmounts, setEditingAmounts] = React.useState<Record<string, number>>({});

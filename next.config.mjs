@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.NEXT_BUILD_DIR || ".next",
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
@@ -20,7 +21,6 @@ const nextConfig = {
       },
     ],
   },
-  serverExternalPackages: ["firebase-admin", "jose", "jwks-rsa"],
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
     serverComponentsExternalPackages: ["firebase-admin", "jose", "jwks-rsa"],

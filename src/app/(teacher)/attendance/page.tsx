@@ -200,168 +200,224 @@ function AttendanceContent() {
     }
   };
 
-  // 3. Unified Handle Scan (Camera or Laser Barcode Scanner)
-  const handleScan = async (token: string, source: "camera" | "scanner") => {
-    if (!activeSession || isProcessingScan) return;
+  // 3. Ultra-Fast Asynchronous Scan Queue (Zero-Loss, Non-Blocking)
+  const scanQueueRef = React.useRef<Array<{ token: string; source: "camera" | "scanner" }>>([]);
+  const isProcessingQueueRef = React.useRef(false);
+  const activeSessionRef = React.useRef(activeSession);
+  activeSessionRef.current = activeSession;
+  const isOnlineRef = React.useRef(isOnline);
+  isOnlineRef.current = isOnline;
 
+  const processScanQueue = React.useCallback(async () => {
+    if (isProcessingQueueRef.current) return;
+    isProcessingQueueRef.current = true;
     setIsProcessingScan(true);
 
-    // If Offline: Save locally to IndexedDB queue with duplicate check
-    if (!isOnline) {
-      try {
-        const queueRes = await enqueueOfflineScan({
-          sessionId: activeSession.session.id,
-          groupId: activeSession.session.groupId,
-          qrToken: token,
-          source,
-        });
-
-        const count = await getPendingScansCount(activeSession.session.id);
-        setPendingQueueCount(count);
-
-        if (queueRes.duplicate) {
-          soundEffects.playDuplicate();
-          setLastScanResult({
-            success: false,
-            status: "already_recorded",
-            message: "تم تسجيل هذا الكود مسبقاً في قائمة الانتظار بدون اتصال (محلياً)",
-            source,
-            scannedAt: new Date().toISOString(),
-          });
-          toast.warning("تم تسجيل هذا الكود مسبقاً في قائمة الانتظار محلياً");
-          return;
-        }
-
-        if (queueRes.success) {
-          soundEffects.playSuccess();
-          const nowStr = new Date().toISOString();
-          setLastScanResult({
-            success: true,
-            status: "success",
-            message:
-              "تم حفظ المسح محلياً في قائمة الانتظار (سيتم المزامنة تلقائياً عند عودة الاتصال)",
-            studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
-            source,
-            scannedAt: nowStr,
-          });
-
-          // Add temporary local entry to records list
-          const localRecord: SessionRecordItem = {
-            id: `temp_${Date.now()}`,
-            studentId: `offline_${token}`,
-            studentName: `طالب أوفلاين (${token.length > 10 ? `${token.slice(0, 8)}...` : token})`,
-            studentPhone: "",
-            status: "present",
-            scannedAt: nowStr,
-            source,
-          };
-
-          setActiveSession((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              session: {
-                ...prev.session,
-                presentCount: prev.session.presentCount + 1,
-              },
-              records: [localRecord, ...prev.records],
-            };
-          });
-          return;
-        }
-      } catch (err) {
-        console.error("Offline enqueue error:", err);
-        toast.error("فشل حفظ السجل محلياً");
-      } finally {
-        setIsProcessingScan(false);
-      }
-      return;
-    }
-
-    // If Online: Call atomic recordAttendanceScan Server Action
     try {
-      const res = await recordAttendanceScan({
-        sessionId: activeSession.session.id,
-        groupId: activeSession.session.groupId,
-        qrToken: token,
-        source,
-      });
+      while (scanQueueRef.current.length > 0) {
+        const item = scanQueueRef.current.shift();
+        if (!item) break;
+        const currentSession = activeSessionRef.current;
+        if (!currentSession) break;
 
-      setLastScanResult(res);
+        const { token, source } = item;
+        const online = isOnlineRef.current;
 
-      // Trigger Web Audio tone & state update according to result
-      if (res.status === "success") {
-        soundEffects.playSuccess();
-        const newRecord: SessionRecordItem = {
-          id: res.studentId!,
-          studentId: res.studentId!,
-          studentName: res.studentName!,
-          studentPhone: res.studentPhone || "",
-          status: "present",
-          scannedAt: res.scannedAt!,
-          source: res.source || source,
-        };
+        // If Offline: Save locally to IndexedDB queue with duplicate check
+        if (!online) {
+          try {
+            const queueRes = await enqueueOfflineScan({
+              sessionId: currentSession.session.id,
+              groupId: currentSession.session.groupId,
+              qrToken: token,
+              source,
+            });
 
-        setActiveSession((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            session: {
-              ...prev.session,
-              presentCount: prev.session.presentCount + 1,
-            },
-            records: [newRecord, ...prev.records.filter((r) => r.studentId !== res.studentId)],
-          };
-        });
-      } else if (res.status === "wrong_group") {
-        soundEffects.playWarning();
-      } else if (res.status === "blocked") {
-        soundEffects.playBlocked();
-      } else if (res.status === "already_recorded") {
-        soundEffects.playDuplicate();
-      } else {
-        soundEffects.playWarning();
-      }
-    } catch {
-      // If network failed mid-scan, fallback seamlessly to offline queue
-      try {
-        const queueRes = await enqueueOfflineScan({
-          sessionId: activeSession.session.id,
-          groupId: activeSession.session.groupId,
-          qrToken: token,
-          source,
-        });
-        const count = await getPendingScansCount(activeSession.session.id);
-        setPendingQueueCount(count);
+            const count = await getPendingScansCount(currentSession.session.id);
+            setPendingQueueCount(count);
 
-        if (queueRes.duplicate) {
-          soundEffects.playDuplicate();
-          setLastScanResult({
-            success: false,
-            status: "already_recorded",
-            message: "تم تسجيل هذا الكود مسبقاً في قائمة الانتظار بدون اتصال",
-            source,
-            scannedAt: new Date().toISOString(),
-          });
-        } else if (queueRes.success) {
-          soundEffects.playSuccess();
-          setLastScanResult({
-            success: true,
-            status: "success",
-            message:
-              "تعذر الاتصال بالخادم — تم حفظ الكود محلياً في قائمة الانتظار للمزامنة اللاحقة",
-            studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
-            source,
-            scannedAt: new Date().toISOString(),
-          });
+            if (queueRes.duplicate) {
+              soundEffects.playDuplicate();
+              setLastScanResult({
+                success: false,
+                status: "already_recorded",
+                message: "تم تسجيل هذا الكود مسبقاً في قائمة الانتظار بدون اتصال (محلياً)",
+                source,
+                scannedAt: new Date().toISOString(),
+              });
+              toast.warning("تم تسجيل هذا الكود مسبقاً في قائمة الانتظار محلياً");
+              continue;
+            }
+
+            if (queueRes.success) {
+              soundEffects.playSuccess();
+              const nowStr = new Date().toISOString();
+              setLastScanResult({
+                success: true,
+                status: "success",
+                message:
+                  "تم حفظ المسح محلياً في قائمة الانتظار (سيتم المزامنة تلقائياً عند عودة الاتصال)",
+                studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
+                source,
+                scannedAt: nowStr,
+              });
+
+              // Add temporary local entry to records list
+              const localRecord: SessionRecordItem = {
+                id: `temp_${Date.now()}`,
+                studentId: `offline_${token}`,
+                studentName: `طالب أوفلاين (${token.length > 10 ? `${token.slice(0, 8)}...` : token})`,
+                studentPhone: "",
+                status: "present",
+                scannedAt: nowStr,
+                source,
+              };
+
+              setActiveSession((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  session: {
+                    ...prev.session,
+                    presentCount: prev.session.presentCount + 1,
+                  },
+                  records: [localRecord, ...prev.records],
+                };
+              });
+              continue;
+            }
+          } catch (err) {
+            console.error("Offline enqueue error:", err);
+            toast.error("فشل حفظ السجل محلياً");
+          }
+          continue;
         }
-      } catch {
-        toast.error("حدث خطأ أثناء معالجة كود المسح");
+
+        // If Online: Call atomic recordAttendanceScan Server Action
+        try {
+          const res = await recordAttendanceScan({
+            sessionId: currentSession.session.id,
+            groupId: currentSession.session.groupId,
+            qrToken: token,
+            source,
+          });
+
+          setLastScanResult(res);
+
+          // Trigger Web Audio tone & state update according to result
+          if (res.status === "success") {
+            soundEffects.playSuccess();
+            const newRecord: SessionRecordItem = {
+              id: res.studentId!,
+              studentId: res.studentId!,
+              studentName: res.studentName!,
+              studentPhone: res.studentPhone || "",
+              status: "present",
+              scannedAt: res.scannedAt!,
+              source: res.source || source,
+            };
+
+            setActiveSession((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                session: {
+                  ...prev.session,
+                  presentCount: prev.session.presentCount + 1,
+                },
+                records: [newRecord, ...prev.records.filter((r) => r.studentId !== res.studentId)],
+              };
+            });
+          } else if (res.status === "wrong_group") {
+            soundEffects.playWarning();
+          } else if (res.status === "blocked") {
+            soundEffects.playBlocked();
+          } else if (res.status === "already_recorded") {
+            soundEffects.playDuplicate();
+          } else {
+            soundEffects.playWarning();
+          }
+        } catch {
+          // If network failed mid-scan, fallback seamlessly to offline queue
+          try {
+            const queueRes = await enqueueOfflineScan({
+              sessionId: currentSession.session.id,
+              groupId: currentSession.session.groupId,
+              qrToken: token,
+              source,
+            });
+            const count = await getPendingScansCount(currentSession.session.id);
+            setPendingQueueCount(count);
+
+            if (queueRes.duplicate) {
+              soundEffects.playDuplicate();
+              setLastScanResult({
+                success: false,
+                status: "already_recorded",
+                message: "تم تسجيل هذا الكود مسبقاً في قائمة الانتظار بدون اتصال",
+                source,
+                scannedAt: new Date().toISOString(),
+              });
+            } else if (queueRes.success) {
+              soundEffects.playSuccess();
+              setLastScanResult({
+                success: true,
+                status: "success",
+                message:
+                  "تعذر الاتصال بالخادم — تم حفظ الكود محلياً في قائمة الانتظار للمزامنة اللاحقة",
+                studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
+                source,
+                scannedAt: new Date().toISOString(),
+              });
+            }
+          } catch {
+            toast.error("حدث خطأ أثناء معالجة كود المسح");
+          }
+        }
       }
     } finally {
+      isProcessingQueueRef.current = false;
       setIsProcessingScan(false);
     }
-  };
+  }, []);
+
+  const handleScan = React.useCallback(
+    (token: string, source: "camera" | "scanner") => {
+      const cleanToken = token.trim();
+      const currentSession = activeSessionRef.current;
+      if (!cleanToken || !currentSession) return;
+
+      // 1. Instant Cache Check: If student is already recorded in active session
+      if (currentSession.registeredStudents) {
+        const matched = currentSession.registeredStudents.find((s) => s.qrToken === cleanToken);
+        if (matched) {
+          const isAlreadyPresent = currentSession.records.some((r) => r.studentId === matched.id);
+          if (isAlreadyPresent) {
+            soundEffects.playDuplicate();
+            setLastScanResult({
+              success: false,
+              status: "already_recorded",
+              message: `تم رصد حضور الطالب "${matched.name}" مسبقاً في هذه الجلسة`,
+              studentName: matched.name,
+              source,
+              scannedAt: new Date().toISOString(),
+            });
+            return;
+          }
+        }
+      }
+
+      // 2. Prevent duplicate entries in queue
+      if (scanQueueRef.current.some((item) => item.token === cleanToken)) {
+        return;
+      }
+
+      // 3. Push to queue and process
+      scanQueueRef.current.push({ token: cleanToken, source });
+      processScanQueue();
+    },
+    [processScanQueue]
+  );
 
   // 4. Handle Manual Attendance Registration
   const handleManualRecord = async (studentId: string, status: "present" | "late") => {
