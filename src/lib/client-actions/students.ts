@@ -136,7 +136,7 @@ export async function getStudentsClient(
     // Fetch payments for this month for the paginated students
     const pageStudentIds = paginatedDocs.map((d) => d.id);
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const paymentsMap = new Map<string, unknown>();
+    const paymentsMap = new Map<string, { id: string; status?: string; [key: string]: unknown }>();
 
     if (pageStudentIds.length > 0) {
       for (let i = 0; i < pageStudentIds.length; i += 10) {

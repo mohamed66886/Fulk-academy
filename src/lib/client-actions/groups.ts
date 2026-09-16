@@ -37,7 +37,7 @@ export async function getGroupsClient(
         name: (data.name as string) || "",
         classId: (data.classId as string) || "",
         className: classMap.get(data.classId as string) || "غير محدد",
-        schedule: (data.schedule as unknown[]) || [],
+        schedule: (data.schedule as GroupListItem["schedule"]) || [],
         price: (data.price as number) || 0,
         hasCenter: Boolean(data.hasCenter),
         status: (data.status as "active" | "archived") || "active",
