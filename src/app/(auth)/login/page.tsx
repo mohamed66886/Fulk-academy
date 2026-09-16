@@ -60,7 +60,9 @@ function LoginForm() {
         sessionResult = await sessionResponse.json();
       } else {
         const text = await sessionResponse.text();
-        throw new Error(`خادم Vercel لا يستجيب بشكل صحيح (Status: ${sessionResponse.status}). Text: ${text.substring(0, 50)}...`);
+        throw new Error(
+          `خادم Vercel لا يستجيب بشكل صحيح (Status: ${sessionResponse.status}). Text: ${text.substring(0, 50)}...`
+        );
       }
 
       // If account is disabled or unauthorized on server
