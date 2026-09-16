@@ -1,4 +1,4 @@
-export function getFirebaseAuthErrorMessage(errorCode: string): string {
+export function getFirebaseAuthErrorMessage(errorCode: string, errorMessage?: string): string {
   switch (errorCode) {
     case "auth/invalid-credential":
     case "auth/wrong-password":
@@ -15,6 +15,6 @@ export function getFirebaseAuthErrorMessage(errorCode: string): string {
     case "ACCOUNT_DISABLED":
       return "تم إيقاف هذا الحساب، تواصل مع الإدارة.";
     default:
-      return `حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى. (${errorCode || "Unknown"})`;
+      return `حدث خطأ أثناء تسجيل الدخول. (${errorCode || errorMessage || "Unknown"})`;
   }
 }

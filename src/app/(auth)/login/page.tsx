@@ -54,7 +54,14 @@ function LoginForm() {
         body: JSON.stringify({ idToken }),
       });
 
-      const sessionResult = await sessionResponse.json();
+      let sessionResult;
+      const contentType = sessionResponse.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        sessionResult = await sessionResponse.json();
+      } else {
+        const text = await sessionResponse.text();
+        throw new Error(`خادم Vercel لا يستجيب بشكل صحيح (Status: ${sessionResponse.status}). Text: ${text.substring(0, 50)}...`);
+      }
 
       // If account is disabled or unauthorized on server
       if (!sessionResponse.ok) {
@@ -89,7 +96,7 @@ function LoginForm() {
       router.refresh();
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
-      const errorMessage = getFirebaseAuthErrorMessage(err.code || "");
+      const errorMessage = getFirebaseAuthErrorMessage(err.code || "", err.message);
       setError("root", { message: errorMessage });
       toast.error(errorMessage);
     } finally {
