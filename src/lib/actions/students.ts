@@ -413,7 +413,20 @@ export async function createStudent(data: StudentFormData): Promise<{
       deletedBy: null,
     };
 
-    const docRef = await teacherRef.collection("students").add(studentPayload);
+    const generateUniqueStudentId = async (): Promise<string> => {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let id = "";
+      for (let i = 0; i < 6; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const docSnap = await teacherRef.collection("students").doc(id).get();
+      if (docSnap.exists) return generateUniqueStudentId();
+      return id;
+    };
+
+    const studentId = await generateUniqueStudentId();
+    const docRef = teacherRef.collection("students").doc(studentId);
+    await docRef.set(studentPayload);
 
     // Audit Log
     try {

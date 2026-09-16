@@ -267,8 +267,20 @@ export async function createStudentClient(
       deletedAt: null,
       deletedBy: null,
     };
+    const generateUniqueStudentId = async (): Promise<string> => {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let id = "";
+      for (let i = 0; i < 6; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const docSnap = await getDoc(doc(teacherRef, "students", id));
+      if (docSnap.exists()) return generateUniqueStudentId();
+      return id;
+    };
 
-    const docRef = await addDoc(collection(teacherRef, "students"), studentPayload);
+    const studentId = await generateUniqueStudentId();
+    const docRef = doc(teacherRef, "students", studentId);
+    await setDoc(docRef, studentPayload);
 
     // Write qr token indices
     try {
