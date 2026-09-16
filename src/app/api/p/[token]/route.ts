@@ -165,7 +165,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const lastAttendance = attendanceRecords.length > 0 ? attendanceRecords[0] : null;
 
     // 5. Calculate Payments (without sensitive internals)
-    const paymentsMap = new Map<string, unknown>();
+    const paymentsMap = new Map<string, { id: string; month: string; status: "paid" | "partial" | "unpaid"; remaining: number; }>();
     paymentsSnap.docs.forEach((doc) => {
       const d = doc.data();
       const month = (d.month as string) || "";
