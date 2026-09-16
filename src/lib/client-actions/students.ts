@@ -1,9 +1,29 @@
-import { collection, query, where, orderBy, getDocs, getDoc, updateDoc, setDoc, addDoc, getCountFromServer, limit, startAfter, doc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  getDoc,
+  updateDoc,
+  setDoc,
+  addDoc,
+  getCountFromServer,
+  limit,
+  startAfter,
+  doc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/stores";
-import type { StudentsQueryParams, StudentsQueryResponse, StudentListItem } from "@/lib/actions/students";
+import type {
+  StudentsQueryParams,
+  StudentsQueryResponse,
+  StudentListItem,
+} from "@/lib/actions/students";
 
-export async function getStudentsClient(params: StudentsQueryParams = {}): Promise<StudentsQueryResponse> {
+export async function getStudentsClient(
+  params: StudentsQueryParams = {}
+): Promise<StudentsQueryResponse> {
   try {
     const { teacherId } = useAuthStore.getState();
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
@@ -28,7 +48,9 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
 
     let totalCount = 0;
     let totalPages = 1;
-    let paginatedDocs: any[] = [];
+    let paginatedDocs: import("firebase/firestore").QueryDocumentSnapshot<
+      import("firebase/firestore").DocumentData
+    >[] = [];
 
     // Fast path: No text search
     if (!params.search || !params.search.trim()) {
@@ -38,11 +60,11 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
       } catch (e) {
         console.warn("Count query failed", e);
       }
-      
+
       totalPages = Math.ceil(totalCount / pageSize) || 1;
-      
+
       let pagedQuery = query(studentsQuery, orderBy(sortBy, sortOrder));
-      
+
       try {
         if (page > 1) {
           const skipCount = (page - 1) * pageSize;
@@ -52,7 +74,7 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
             pagedQuery = query(pagedQuery, startAfter(lastVisible));
           }
         }
-        
+
         const snap = await getDocs(query(pagedQuery, limit(pageSize)));
         paginatedDocs = snap.docs;
       } catch (indexError) {
@@ -61,14 +83,14 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
         const allDocs = [...allSnap.docs];
         totalCount = allDocs.length;
         totalPages = Math.ceil(totalCount / pageSize) || 1;
-        
+
         allDocs.sort((a, b) => {
           const aVal = a.data()[sortBy] || "";
           const bVal = b.data()[sortBy] || "";
           if (sortOrder === "asc") return aVal > bVal ? 1 : -1;
           return aVal < bVal ? 1 : -1;
         });
-        
+
         const startIndex = (page - 1) * pageSize;
         paginatedDocs = allDocs.slice(startIndex, startIndex + pageSize);
       }
@@ -76,45 +98,46 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
       // Text search path
       const allSnap = await getDocs(studentsQuery);
       let allFilteredDocs = allSnap.docs;
-      
+
       const searchTerms = params.search.trim().toLowerCase().split(/\s+/);
       allFilteredDocs = allFilteredDocs.filter((doc) => {
         const d = doc.data();
-        const searchableText = `${d.name || ""} ${d.phone || ""} ${d.parentPhone || ""}`.toLowerCase();
+        const searchableText =
+          `${d.name || ""} ${d.phone || ""} ${d.parentPhone || ""}`.toLowerCase();
         return searchTerms.every((term) => searchableText.includes(term));
       });
-      
+
       totalCount = allFilteredDocs.length;
       totalPages = Math.ceil(totalCount / pageSize) || 1;
-      
+
       allFilteredDocs.sort((a, b) => {
         const aVal = a.data()[sortBy] || "";
         const bVal = b.data()[sortBy] || "";
         if (sortOrder === "asc") return aVal > bVal ? 1 : -1;
         return aVal < bVal ? 1 : -1;
       });
-      
+
       const startIndex = (page - 1) * pageSize;
       paginatedDocs = allFilteredDocs.slice(startIndex, startIndex + pageSize);
     }
-    
+
     // Fetch class and group names for mapping
     const [classesSnap, groupsSnap] = await Promise.all([
       getDocs(query(collection(teacherRef, "classes"), where("deletedAt", "==", null))),
-      getDocs(query(collection(teacherRef, "groups"), where("deletedAt", "==", null)))
+      getDocs(query(collection(teacherRef, "groups"), where("deletedAt", "==", null))),
     ]);
-    
+
     const classMap = new Map<string, string>();
-    classesSnap.forEach(d => classMap.set(d.id, d.data().name as string || ""));
-    
+    classesSnap.forEach((d) => classMap.set(d.id, (d.data().name as string) || ""));
+
     const groupMap = new Map<string, string>();
-    groupsSnap.forEach(d => groupMap.set(d.id, d.data().name as string || ""));
-    
+    groupsSnap.forEach((d) => groupMap.set(d.id, (d.data().name as string) || ""));
+
     // Fetch payments for this month for the paginated students
-    const pageStudentIds = paginatedDocs.map(d => d.id);
+    const pageStudentIds = paginatedDocs.map((d) => d.id);
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const paymentsMap = new Map<string, any>();
-    
+    const paymentsMap = new Map<string, unknown>();
+
     if (pageStudentIds.length > 0) {
       for (let i = 0; i < pageStudentIds.length; i += 10) {
         const chunk = pageStudentIds.slice(i, i + 10);
@@ -125,41 +148,45 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
             where("studentId", "in", chunk)
           )
         );
-        paymentsSnap.forEach(d => paymentsMap.set(d.data().studentId as string, { id: d.id, ...d.data() }));
+        paymentsSnap.forEach((d) =>
+          paymentsMap.set(d.data().studentId as string, { id: d.id, ...d.data() })
+        );
       }
     }
-    
+
     const students: StudentListItem[] = paginatedDocs.map((doc) => {
       const data = doc.data();
       const studentPayment = paymentsMap.get(doc.id);
-      
+
       return {
         id: doc.id,
-        name: data.name as string || "",
-        phone: data.phone as string || "",
-        parentPhone: data.parentPhone as string || "",
-        parentName: data.parentName as string || "",
-        classId: data.classId as string || "",
+        name: (data.name as string) || "",
+        phone: (data.phone as string) || "",
+        parentPhone: (data.parentPhone as string) || "",
+        parentName: (data.parentName as string) || "",
+        classId: (data.classId as string) || "",
         className: classMap.get(data.classId as string) || "غير محدد",
-        groupId: data.groupId as string || "",
+        groupId: (data.groupId as string) || "",
         groupName: groupMap.get(data.groupId as string) || "غير محدد",
         discount: Number(data.discount) || 0,
         finalPrice: Number(data.finalPrice) || 0,
-        status: data.status as "active" | "blocked" || "active",
-        createdAt: data.createdAt as string || "",
-        paymentStatus: studentPayment ? (studentPayment.status as any) : "unpaid",
+        status: (data.status as "active" | "blocked") || "active",
+        createdAt: (data.createdAt as string) || "",
+        paymentStatus: studentPayment
+          ? (studentPayment.status as "paid" | "unpaid" | "partial")
+          : "unpaid",
         currentMonthPaymentId: studentPayment?.id,
         hasCenter: Boolean(data.hasCenter),
       };
     });
-    
+
     return {
       success: true,
       students,
       totalCount,
       page,
       pageSize,
-      totalPages
+      totalPages,
     };
   } catch (error) {
     console.error("GET_STUDENTS_CLIENT_ERROR:", error);
@@ -177,16 +204,18 @@ export async function getStudentsClient(params: StudentsQueryParams = {}): Promi
 
 import type { StudentFormData } from "@/lib/validators/student";
 
-export async function createStudentClient(data: StudentFormData): Promise<{ success: boolean; studentId?: string; error?: string }> {
+export async function createStudentClient(
+  data: StudentFormData
+): Promise<{ success: boolean; studentId?: string; error?: string }> {
   try {
     const { teacherId } = useAuthStore.getState();
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
 
     const teacherRef = doc(db, "teachers", teacherId);
-    
+
     // Validate data manually or use zod if imported
     // For now we assume data is valid as it comes from the form
-    
+
     // Generate QR tokens logic (simplified for client)
     const qrToken = `ST-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const parentQrToken = `PA-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -199,18 +228,20 @@ export async function createStudentClient(data: StudentFormData): Promise<{ succ
         groupPrice = Number(groupDoc.data().price) || 0;
       }
     }
-    
+
     const discount = Number(data.discount) || 0;
     const finalPrice = Math.max(0, groupPrice - discount);
 
     const now = new Date().toISOString();
-    
+
     // Search index array
     const searchIndex: string[] = [];
     const pushWords = (str: string) => {
       if (!str) return;
       const words = str.trim().toLowerCase().split(/\s+/);
-      words.forEach(w => { if (w.length > 2) searchIndex.push(w); });
+      words.forEach((w) => {
+        if (w.length > 2) searchIndex.push(w);
+      });
     };
     pushWords(data.name);
     pushWords(data.phone);
@@ -238,7 +269,7 @@ export async function createStudentClient(data: StudentFormData): Promise<{ succ
     };
 
     const docRef = await addDoc(collection(teacherRef, "students"), studentPayload);
-    
+
     // Write qr token indices
     try {
       await setDoc(doc(db, "qrIndex", qrToken), {
@@ -256,7 +287,7 @@ export async function createStudentClient(data: StudentFormData): Promise<{ succ
     } catch (e) {
       console.warn("Failed to create QR index", e);
     }
-    
+
     return { success: true, studentId: docRef.id };
   } catch (error) {
     console.error(error);
@@ -267,17 +298,20 @@ export async function createStudentClient(data: StudentFormData): Promise<{ succ
   }
 }
 
-export async function updateStudentClient(studentId: string, data: StudentFormData): Promise<{ success: boolean; error?: string }> {
+export async function updateStudentClient(
+  studentId: string,
+  data: StudentFormData
+): Promise<{ success: boolean; error?: string }> {
   try {
     const { teacherId } = useAuthStore.getState();
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
 
     const teacherRef = doc(db, "teachers", teacherId);
     const studentRef = doc(teacherRef, "students", studentId);
-    
+
     const existingSnap = await getDoc(studentRef);
     if (!existingSnap.exists()) return { success: false, error: "الطالب غير موجود" };
-    
+
     let groupPrice = 0;
     if (data.groupId) {
       const groupDoc = await getDoc(doc(teacherRef, "groups", data.groupId));
@@ -292,7 +326,9 @@ export async function updateStudentClient(studentId: string, data: StudentFormDa
     const pushWords = (str: string) => {
       if (!str) return;
       const words = str.trim().toLowerCase().split(/\s+/);
-      words.forEach(w => { if (w.length > 2) searchIndex.push(w); });
+      words.forEach((w) => {
+        if (w.length > 2) searchIndex.push(w);
+      });
     };
     pushWords(data.name);
     pushWords(data.phone);
@@ -325,13 +361,15 @@ export async function updateStudentClient(studentId: string, data: StudentFormDa
   }
 }
 
-export async function deleteStudentClient(studentId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteStudentClient(
+  studentId: string
+): Promise<{ success: boolean; error?: string }> {
   try {
     const { teacherId } = useAuthStore.getState();
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
 
     const studentRef = doc(db, "teachers", teacherId, "students", studentId);
-    
+
     const now = new Date().toISOString();
     await updateDoc(studentRef, {
       deletedAt: now,
@@ -349,19 +387,21 @@ export async function deleteStudentClient(studentId: string): Promise<{ success:
   }
 }
 
-export async function toggleStudentBlockClient(studentId: string): Promise<{ success: boolean; newStatus?: "active" | "blocked"; error?: string }> {
+export async function toggleStudentBlockClient(
+  studentId: string
+): Promise<{ success: boolean; newStatus?: "active" | "blocked"; error?: string }> {
   try {
     const { teacherId } = useAuthStore.getState();
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
 
     const studentRef = doc(db, "teachers", teacherId, "students", studentId);
     const snap = await getDoc(studentRef);
-    
+
     if (!snap.exists()) return { success: false, error: "الطالب غير موجود" };
-    
+
     const currentStatus = snap.data().status;
     const newStatus = currentStatus === "blocked" ? "active" : "blocked";
-    
+
     await updateDoc(studentRef, {
       status: newStatus,
       updatedAt: new Date().toISOString(),

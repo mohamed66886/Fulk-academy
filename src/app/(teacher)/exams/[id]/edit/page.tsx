@@ -291,10 +291,7 @@ export default function EditExamPage() {
                   <Calendar className="h-3.5 w-3.5 text-muted" />
                   تاريخ إجراء الامتحان <span className="text-danger">*</span>
                 </label>
-                <DatePicker
-                  date={examDate}
-                  setDate={setExamDate}
-                />
+                <DatePicker date={examDate} setDate={setExamDate} />
               </div>
             </div>
 

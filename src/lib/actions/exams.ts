@@ -526,7 +526,7 @@ export async function getExamGrades(examId: string): Promise<{
 
     // 1. Fetch Exam
     const examDoc = await teacherRef.collection("exams").doc(examId).get();
-    if (!examDoc.exists || examDoc.data()?.deletedAt != null) {
+    if (!examDoc.exists || examDoc.data()?.deletedAt !== null) {
       return { success: false, error: "الامتحان غير موجود" };
     }
 
@@ -641,7 +641,7 @@ export async function bulkSaveExamGrades({
 
     // 1. Fetch Exam to obtain finalGrade
     const examDoc = await teacherRef.collection("exams").doc(examId).get();
-    if (!examDoc.exists || examDoc.data()?.deletedAt != null) {
+    if (!examDoc.exists || examDoc.data()?.deletedAt !== null) {
       return { success: false, message: "الامتحان غير موجود", error: "الامتحان غير موجود" };
     }
 

@@ -3,10 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  getStudentsCardsData,
-  type StudentCardData,
-} from "@/lib/actions/students";
+import { getStudentsCardsData, type StudentCardData } from "@/lib/actions/students";
 import { useClassesForSelect, useGroups } from "@/hooks/use-cached-data";
 import { generateBarcodeDataUrl } from "@/lib/utils/barcode";
 import { generateQrDataUrl } from "@/lib/utils/qr";
@@ -97,7 +94,10 @@ export default function PrintCardsStudioPage() {
       let studentIds: string[] | undefined;
 
       if (rawIds) {
-        studentIds = rawIds.split(",").map((s) => s.trim()).filter(Boolean);
+        studentIds = rawIds
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
       } else if (typeof window !== "undefined") {
         const stored = sessionStorage.getItem("selectedStudentIdsForPrint");
         if (stored) {
@@ -143,8 +143,7 @@ export default function PrintCardsStudioPage() {
       const bMap = new Map<string, string>();
       const qMap = new Map<string, string>();
 
-      const host =
-        typeof window !== "undefined" ? window.location.origin : "https://fulk.academy";
+      const host = typeof window !== "undefined" ? window.location.origin : "https://fulk.academy";
 
       const promises = students.map(async (st) => {
         // Barcode for student attendance
@@ -523,7 +522,11 @@ export default function PrintCardsStudioPage() {
               </label>
               <Select
                 value={printLayout}
-                onChange={(e) => setPrintLayout(e.target.value as any)}
+                onChange={(e) =>
+                  setPrintLayout(
+                    e.target.value as "duplex" | "fronts-then-backs" | "fronts-only" | "backs-only"
+                  )
+                }
                 className="text-xs font-medium"
               >
                 <option value="duplex">وجه وظهر متتاليان (Duplex المزدوج)</option>
@@ -541,10 +544,12 @@ export default function PrintCardsStudioPage() {
               </label>
               <Select
                 value={flipMode}
-                onChange={(e) => setFlipMode(e.target.value as any)}
+                onChange={(e) => setFlipMode(e.target.value as "long-edge" | "short-edge")}
                 className="text-xs font-medium"
               >
-                <option value="long-edge">على الحافة الطويلة (Long Edge - الافتراضي والموصى به)</option>
+                <option value="long-edge">
+                  على الحافة الطويلة (Long Edge - الافتراضي والموصى به)
+                </option>
                 <option value="short-edge">على الحافة القصيرة (Short Edge)</option>
               </Select>
             </div>
@@ -605,7 +610,8 @@ export default function PrintCardsStudioPage() {
             <div className="flex items-center gap-2 text-muted">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               <span>
-                المقاس المطبق: <strong className="text-text">{CARD_SIZES[cardSize].label}</strong> • كل ورقة A4 تضم 8 كروت متطابقة الوجه والظهر.
+                المقاس المطبق: <strong className="text-text">{CARD_SIZES[cardSize].label}</strong> •
+                كل ورقة A4 تضم 8 كروت متطابقة الوجه والظهر.
               </span>
             </div>
           </div>
@@ -624,7 +630,8 @@ export default function PrintCardsStudioPage() {
             <Info className="h-10 w-10 text-muted mx-auto stroke-[1.5]" />
             <h3 className="text-base font-bold text-text">لم يتم العثور على طلاب للطباعة</h3>
             <p className="text-xs text-muted max-w-md mx-auto">
-              قم بالرجوع لقائمة الطلاب وحدد الطلاب المراد طباعة كروت لهم، أو اختر صَفاً ومجموعة من القائمة أعلاه.
+              قم بالرجوع لقائمة الطلاب وحدد الطلاب المراد طباعة كروت لهم، أو اختر صَفاً ومجموعة من
+              القائمة أعلاه.
             </p>
             <Link href="/students">
               <Button size="sm" className="gap-1.5 font-bold">
@@ -636,18 +643,15 @@ export default function PrintCardsStudioPage() {
         ) : (
           <div id="print-sheets-area" className="space-y-12">
             {sheetsToRender.map((sheet) => (
-              <div
-                key={sheet.id}
-                className="preview-sheet-wrapper flex flex-col items-center"
-              >
+              <div key={sheet.id} className="preview-sheet-wrapper flex flex-col items-center">
                 {/* Visual Sheet Banner (hidden on print) */}
                 <div className="no-print w-full max-w-[210mm] flex items-center justify-between pb-2 text-xs font-bold text-muted">
                   <span className="flex items-center gap-2">
-                    <Badge
-                      variant={sheet.sheetType === "front" ? "primary" : "default"}
-                      size="sm"
-                    >
-                      صفحة {sheet.pageNumber}: {sheet.sheetType === "front" ? "الوجه الأمامي (Front)" : "الوجه الخلفي (Back)"}
+                    <Badge variant={sheet.sheetType === "front" ? "primary" : "default"} size="sm">
+                      صفحة {sheet.pageNumber}:{" "}
+                      {sheet.sheetType === "front"
+                        ? "الوجه الأمامي (Front)"
+                        : "الوجه الخلفي (Back)"}
                     </Badge>
                     <span className="text-gray-500 font-normal">
                       {sheet.sheetType === "front"
@@ -755,7 +759,8 @@ export default function PrintCardsStudioPage() {
                 <div>
                   <strong className="font-bold">الهوامش (Margins):</strong>
                   <p className="text-muted text-[11px] mt-0.5">
-                    اختر <strong>بلا هوامش (None)</strong> أو <strong>صفر</strong>، لأن التصميم يحتوي على هوامش هندسية دقيقة متماثلة في الكود.
+                    اختر <strong>بلا هوامش (None)</strong> أو <strong>صفر</strong>، لأن التصميم
+                    يحتوي على هوامش هندسية دقيقة متماثلة في الكود.
                   </p>
                 </div>
               </div>
@@ -765,7 +770,8 @@ export default function PrintCardsStudioPage() {
                 <div>
                   <strong className="font-bold">مقياس الرسم (Scale):</strong>
                   <p className="text-muted text-[11px] mt-0.5">
-                    اختر <strong>100% (الافتراضي / Default)</strong>، وتجنب خيار &quot;Fit to printable area&quot;.
+                    اختر <strong>100% (الافتراضي / Default)</strong>، وتجنب خيار &quot;Fit to
+                    printable area&quot;.
                   </p>
                 </div>
               </div>
@@ -775,7 +781,8 @@ export default function PrintCardsStudioPage() {
                 <div>
                   <strong className="font-bold">الطباعة على الوجهين (Duplex / Two-Sided):</strong>
                   <p className="text-muted text-[11px] mt-0.5">
-                    اختر <strong>Flip on long edge (القلب على الحافة الطويلة)</strong> حتى يتطابق الوجه والظهر تماماً.
+                    اختر <strong>Flip on long edge (القلب على الحافة الطويلة)</strong> حتى يتطابق
+                    الوجه والظهر تماماً.
                   </p>
                 </div>
               </div>
@@ -785,7 +792,8 @@ export default function PrintCardsStudioPage() {
                 <div>
                   <strong className="font-bold">رسومات الخلفية (Background Graphics):</strong>
                   <p className="text-muted text-[11px] mt-0.5">
-                    تأكد من تفعيل خيار <strong>Background Graphics</strong> في المتصفح لظهور ألوان وشعار الكارت بأعلى جودة.
+                    تأكد من تفعيل خيار <strong>Background Graphics</strong> في المتصفح لظهور ألوان
+                    وشعار الكارت بأعلى جودة.
                   </p>
                 </div>
               </div>

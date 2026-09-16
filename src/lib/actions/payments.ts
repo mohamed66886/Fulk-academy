@@ -187,7 +187,7 @@ export async function getMonthPayments(filters: GetMonthPaymentsFilters): Promis
 
           let required = payment ? Number(payment.required) || 0 : defaultPrice;
           let remaining = payment ? Number(payment.remaining) || 0 : required;
-          
+
           // Fix for previously broken auto-generated payments with required=0
           if (required === 0 && defaultPrice > 0 && Number(payment?.paid || 0) === 0) {
             required = defaultPrice;
@@ -407,7 +407,7 @@ export async function updatePayment({
 
       // 5. Read Monthly Aggregation Document BEFORE writing
       const aggDoc = await transaction.get(aggRef);
-      
+
       // 6. Build payment payload and save
       const paymentPayload = {
         id: paymentDocId,

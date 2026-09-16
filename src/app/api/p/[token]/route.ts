@@ -165,7 +165,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const lastAttendance = attendanceRecords.length > 0 ? attendanceRecords[0] : null;
 
     // 5. Calculate Payments (without sensitive internals)
-    const paymentsMap = new Map<string, any>();
+    const paymentsMap = new Map<string, unknown>();
     paymentsSnap.docs.forEach((doc) => {
       const d = doc.data();
       const month = (d.month as string) || "";
@@ -200,8 +200,8 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const examInfoMap = new Map<string, { name: string; date: string; maxGrade: number }>();
     examsSnap.docs.forEach((d) => {
       const ex = d.data();
-      if (ex.deletedAt != null || ex.isDeleted) return;
-      
+      if (ex.deletedAt !== null || ex.isDeleted) return;
+
       examInfoMap.set(d.id, {
         name: (ex.name as string) || "امتحان",
         date: (ex.examDate as string) || "",

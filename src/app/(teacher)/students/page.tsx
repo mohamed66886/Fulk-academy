@@ -693,9 +693,7 @@ export default function StudentsListPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs">
               {selectedStudentIds.size}
             </div>
-            <span className="text-xs font-bold text-text">
-              طالب تم تحديده
-            </span>
+            <span className="text-xs font-bold text-text">طالب تم تحديده</span>
           </div>
 
           <div className="flex items-center gap-2">

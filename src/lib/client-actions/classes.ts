@@ -8,16 +8,13 @@ export async function getClassesForSelectClient(): Promise<Array<{ id: string; n
     if (!teacherId) throw new Error("يجب تسجيل الدخول");
 
     const teacherRef = doc(db, "teachers", teacherId);
-    const classesQuery = query(
-      collection(teacherRef, "classes"),
-      where("deletedAt", "==", null)
-    );
+    const classesQuery = query(collection(teacherRef, "classes"), where("deletedAt", "==", null));
 
     const snap = await getDocs(classesQuery);
     const classes = snap.docs.map((doc) => ({
       id: doc.id,
       name: doc.data().name as string,
-      createdAt: doc.data().createdAt as string || "",
+      createdAt: (doc.data().createdAt as string) || "",
     }));
 
     classes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
