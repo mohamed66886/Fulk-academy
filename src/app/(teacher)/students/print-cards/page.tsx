@@ -37,6 +37,18 @@ import {
 const CARDS_PER_SHEET = 8; // 2 columns x 4 rows
 
 export default function PrintCardsStudioPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="p-8 text-center text-muted-foreground font-cairo">جاري التحميل...</div>
+      }
+    >
+      <PrintCardsStudioContent />
+    </React.Suspense>
+  );
+}
+
+function PrintCardsStudioContent() {
   const searchParams = useSearchParams();
   const rawIds = searchParams.get("ids");
   const queryClassId = searchParams.get("classId");
