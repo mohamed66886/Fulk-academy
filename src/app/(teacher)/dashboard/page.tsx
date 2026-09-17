@@ -1,5 +1,8 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
-import { getTeacherDashboardData } from "@/lib/actions/dashboard";
+import { useDashboard } from "@/hooks/use-cached-data";
 import {
   Users,
   Layers,
@@ -9,21 +12,30 @@ import {
   ArrowLeft,
   CheckCircle2,
   GraduationCap,
+  Loader2,
 } from "lucide-react";
 import { WelcomeBanner } from "@/components/dashboard/welcome-banner";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 
-export const dynamic = "force-dynamic";
+export default function TeacherDashboardPage() {
+  const { data: result, isLoading } = useDashboard();
 
-export default async function TeacherDashboardPage() {
-  const result = await getTeacherDashboardData();
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-muted">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="font-semibold text-lg">جاري تحميل لوحة التحكم...</span>
+      </div>
+    );
+  }
 
-  const data = result.data || {
+  const data = result?.data || {
     cairoDate: {
       dayOfWeek: "monday",
       formattedDate: "",
       arabicDayName: "اليوم",
       arabicFormattedDate: "",
+      currentTime: "",
     },
     teacherName: "المدرس",
     stats: {
@@ -44,7 +56,10 @@ export default async function TeacherDashboardPage() {
   return (
     <div className="space-y-8" dir="rtl">
       {/* Welcome Banner with Sun/Moon Time Greeting & Working Analog Clock */}
-      <WelcomeBanner initialTeacherName={teacherName} initialDate={cairoDate} />
+      <WelcomeBanner
+        initialTeacherName={teacherName}
+        initialDate={cairoDate as React.ComponentProps<typeof WelcomeBanner>["initialDate"]}
+      />
 
       {/* 1. Top Aggregated Statistics Cards (Dark Colored Backgrounds, 2 per row on mobile) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

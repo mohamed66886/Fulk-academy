@@ -1,6 +1,9 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getClassById } from "@/lib/actions/classes";
+import { useParams, notFound } from "next/navigation";
+import { useClassDetail } from "@/hooks/use-cached-data";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,33 +14,24 @@ import {
   TableRow,
   TableHead,
   TableCell,
-  TableEmpty,
 } from "@/components/ui/table";
-import { ArrowRight, Layers, Users, Calendar, Plus, Edit2, Eye, Clock } from "lucide-react";
-import { formatArabicTime } from "@/lib/utils/date";
+import { ArrowRight, Layers, Users, Calendar, Plus, Edit2, Eye, Loader2 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export default function ClassDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const classId = params.id;
+  const { data: result, isLoading } = useClassDetail(classId);
 
-interface ClassDetailsPageProps {
-  params: {
-    id: string;
-  };
-}
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="font-semibold">جاري تحميل تفاصيل الصف...</span>
+      </div>
+    );
+  }
 
-const arabicDaysMap: Record<string, string> = {
-  saturday: "السبت",
-  sunday: "الأحد",
-  monday: "الإثنين",
-  tuesday: "الثلاثاء",
-  wednesday: "الأربعاء",
-  thursday: "الخميس",
-  friday: "الجمعة",
-};
-
-export default async function ClassDetailsPage({ params }: ClassDetailsPageProps) {
-  const result = await getClassById(params.id);
-
-  if (!result.success || !result.classData) {
+  if (!result?.success || !result.classData) {
     notFound();
   }
 
@@ -99,127 +93,97 @@ export default async function ClassDetailsPage({ params }: ClassDetailsPageProps
             <p className="text-[11px] text-muted mt-1">مجموعة دراسية في هذا الصف</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-muted">إجمالي الطلاب</CardTitle>
-            <Users className="h-4 w-4 text-success" />
+            <Users className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">{classData.studentsCount}</div>
-            <p className="text-[11px] text-muted mt-1">طالب مسجل في هذا الصف</p>
+            <div className="text-2xl font-bold text-text">{classData.studentsCount}</div>
+            <p className="text-[11px] text-muted mt-1">طالب مسجل في المجموعات</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-muted">تاريخ الإنشاء</CardTitle>
-            <Calendar className="h-4 w-4 text-muted" />
+            <Calendar className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm font-bold text-text">
-              {new Date(classData.createdAt).toLocaleDateString("ar-EG")}
+            <div className="text-lg font-bold text-text dir-ltr text-right mt-1">
+              {new Date(classData.createdAt).toLocaleDateString("ar-EG", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
             </div>
-            <p className="text-[11px] text-muted mt-1 font-mono">معرّف الصف: {classData.id}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Attached Groups List Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-text">المجموعات التابعة لهذا الصف</h2>
-            <Badge variant="primary" size="sm">
-              {classData.groups.length} مجموعة
-            </Badge>
-          </div>
-        </div>
-
-        <Table className="w-full">
-          <TableHeader>
-            <TableRow>
-              <TableHead>اسم المجموعة</TableHead>
-              <TableHead>سعر الاشتراك</TableHead>
-              <TableHead>مواعيد الحصص</TableHead>
-              <TableHead className="text-center">عدد الطلاب</TableHead>
-              <TableHead className="text-center">الحالة</TableHead>
-              <TableHead className="text-center">الإجراءات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {classData.groups.length === 0 ? (
-              <TableEmpty
-                colSpan={6}
-                icon={<Layers className="h-10 w-10 text-muted stroke-[1.5]" />}
-                title="لا توجد مجموعات تابعة لهذا الصف"
-                description="قم بإنشاء مجموعة دراسية أولى لتحديد المواعيد وقبول الطلاب."
-              />
-            ) : (
-              classData.groups.map((grp) => (
-                <TableRow key={grp.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm text-text">{grp.name}</span>
-                      {grp.hasCenter && (
-                        <span className="text-[10px] text-muted">
-                          حصة سنتر (+{grp.centerSessionPrice ?? 0} ج.م)
-                        </span>
-                      )}
+      {/* Groups List inside this class */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Layers className="h-4 w-4 text-primary" />
+            <span>المجموعات الدراسية المضافة</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface hover:bg-surface">
+                <TableHead className="w-[200px]">اسم المجموعة</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead className="text-left">إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {classData.activeGroups.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-48 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3 text-muted">
+                      <p className="font-semibold text-text">لا توجد مجموعات مسجلة في هذا الصف.</p>
+                      <Link href={`/groups/create?classId=${classData.id}`}>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Plus className="h-4 w-4" />
+                          <span>إنشاء أول مجموعة</span>
+                        </Button>
+                      </Link>
                     </div>
-                  </TableCell>
-
-                  <TableCell className="text-xs font-semibold text-text">{grp.price} ج.م</TableCell>
-
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {grp.schedule.map((sch, i) => (
-                        <span
-                          key={`sch-${i}`}
-                          className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-[11px] text-text"
-                        >
-                          <Clock className="h-3 w-3 text-muted" />
-                          <span>{arabicDaysMap[sch.day] || sch.day}</span>
-                          <span>
-                            ({formatArabicTime(sch.startTime)} - {formatArabicTime(sch.endTime)})
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="text-center">
-                    <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-bold">
-                      {grp.studentsCount} طالب
-                    </span>
-                  </TableCell>
-
-                  <TableCell className="text-center">
-                    {grp.status === "active" ? (
-                      <Badge variant="success" dot size="sm">
-                        نشط
-                      </Badge>
-                    ) : (
-                      <Badge variant="default" size="sm">
-                        مؤرشف
-                      </Badge>
-                    )}
-                  </TableCell>
-
-                  <TableCell className="text-center">
-                    <Link href={`/groups/${grp.id}`}>
-                      <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>عرض</span>
-                      </Button>
-                    </Link>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : (
+                classData.activeGroups.map((group: { id: string; name: string }) => (
+                  <TableRow key={group.id} className="group hover:bg-surface/50">
+                    <TableCell className="font-bold text-text">{group.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="success" className="text-[10px]" dot>
+                        نشط
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/groups/${group.id}`}>
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>عرض</span>
+                          </Button>
+                        </Link>
+                        <Link href={`/groups/${group.id}/edit`}>
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>تعديل</span>
+                          </Button>
+                        </Link>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

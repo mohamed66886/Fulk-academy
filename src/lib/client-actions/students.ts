@@ -21,6 +21,48 @@ import type {
   StudentListItem,
 } from "@/lib/actions/students";
 
+// ─── In-memory cache for class/group names (refreshed every 10 min) ─────
+let _classMapCache: Map<string, string> | null = null;
+let _groupMapCache: Map<string, { name: string; classId: string }> | null = null;
+let _refDataCachedAt = 0;
+const REF_DATA_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getRefDataMaps(teacherRef: import("firebase/firestore").DocumentReference) {
+  const now = Date.now();
+  if (_classMapCache && _groupMapCache && now - _refDataCachedAt < REF_DATA_TTL) {
+    return { classMap: _classMapCache, groupMap: _groupMapCache };
+  }
+
+  const [classesSnap, groupsSnap] = await Promise.all([
+    getDocs(query(collection(teacherRef, "classes"), where("deletedAt", "==", null))),
+    getDocs(query(collection(teacherRef, "groups"), where("deletedAt", "==", null))),
+  ]);
+
+  const classMap = new Map<string, string>();
+  classesSnap.forEach((d) => classMap.set(d.id, (d.data().name as string) || ""));
+
+  const groupMap = new Map<string, { name: string; classId: string }>();
+  groupsSnap.forEach((d) =>
+    groupMap.set(d.id, {
+      name: (d.data().name as string) || "",
+      classId: (d.data().classId as string) || "",
+    })
+  );
+
+  _classMapCache = classMap;
+  _groupMapCache = groupMap;
+  _refDataCachedAt = now;
+
+  return { classMap, groupMap };
+}
+
+/** Invalidate the in-memory ref data cache (call after creating/editing classes or groups) */
+export function invalidateRefDataCache() {
+  _classMapCache = null;
+  _groupMapCache = null;
+  _refDataCachedAt = 0;
+}
+
 export async function getStudentsClient(
   params: StudentsQueryParams = {}
 ): Promise<StudentsQueryResponse> {
@@ -45,6 +87,9 @@ export async function getStudentsClient(
     const sortOrder = params.sortOrder || "desc";
     const page = params.page || 1;
     const pageSize = params.pageSize || 20;
+
+    // 🚀 KEY OPTIMIZATION: Fetch ref data (classes/groups) IN PARALLEL with student query
+    const refDataPromise = getRefDataMaps(teacherRef);
 
     let totalCount = 0;
     let totalPages = 1;
@@ -121,37 +166,33 @@ export async function getStudentsClient(
       paginatedDocs = allFilteredDocs.slice(startIndex, startIndex + pageSize);
     }
 
-    // Fetch class and group names for mapping
-    const [classesSnap, groupsSnap] = await Promise.all([
-      getDocs(query(collection(teacherRef, "classes"), where("deletedAt", "==", null))),
-      getDocs(query(collection(teacherRef, "groups"), where("deletedAt", "==", null))),
-    ]);
+    // Await ref data (was fetching in parallel with student query above)
+    const { classMap, groupMap } = await refDataPromise;
 
-    const classMap = new Map<string, string>();
-    classesSnap.forEach((d) => classMap.set(d.id, (d.data().name as string) || ""));
-
-    const groupMap = new Map<string, string>();
-    groupsSnap.forEach((d) => groupMap.set(d.id, (d.data().name as string) || ""));
-
-    // Fetch payments for this month for the paginated students
+    // 🚀 Fetch payments for this month IN PARALLEL (all chunks at once)
     const pageStudentIds = paginatedDocs.map((d) => d.id);
     const currentMonth = new Date().toISOString().slice(0, 7);
     const paymentsMap = new Map<string, { id: string; status?: string; [key: string]: unknown }>();
 
     if (pageStudentIds.length > 0) {
+      const paymentChunkPromises: Promise<void>[] = [];
       for (let i = 0; i < pageStudentIds.length; i += 10) {
         const chunk = pageStudentIds.slice(i, i + 10);
-        const paymentsSnap = await getDocs(
-          query(
-            collection(teacherRef, "payments"),
-            where("month", "==", currentMonth),
-            where("studentId", "in", chunk)
-          )
-        );
-        paymentsSnap.forEach((d) =>
-          paymentsMap.set(d.data().studentId as string, { id: d.id, ...d.data() })
+        paymentChunkPromises.push(
+          getDocs(
+            query(
+              collection(teacherRef, "payments"),
+              where("month", "==", currentMonth),
+              where("studentId", "in", chunk)
+            )
+          ).then((paymentsSnap) => {
+            paymentsSnap.forEach((d) =>
+              paymentsMap.set(d.data().studentId as string, { id: d.id, ...d.data() })
+            );
+          })
         );
       }
+      await Promise.all(paymentChunkPromises);
     }
 
     const students: StudentListItem[] = paginatedDocs.map((doc) => {
@@ -167,7 +208,7 @@ export async function getStudentsClient(
         classId: (data.classId as string) || "",
         className: classMap.get(data.classId as string) || "غير محدد",
         groupId: (data.groupId as string) || "",
-        groupName: groupMap.get(data.groupId as string) || "غير محدد",
+        groupName: groupMap.get(data.groupId as string)?.name || "غير محدد",
         discount: Number(data.discount) || 0,
         finalPrice: Number(data.finalPrice) || 0,
         status: (data.status as "active" | "blocked") || "active",
@@ -516,6 +557,77 @@ export async function shortenAllExistingStudentTokens(): Promise<{
       success: false,
       count: 0,
       error: err instanceof Error ? err.message : "فشل تحديث الأكواد",
+    };
+  }
+}
+
+// ─── Get Single Student By ID (Client-Side Direct Firestore) ────────
+import type { Student, StudentStatus } from "@/types";
+
+export async function getStudentByIdClient(studentId: string): Promise<{
+  success: boolean;
+  student?: Student & { className: string; groupName: string; teacherName: string };
+  error?: string;
+}> {
+  try {
+    const { teacherId } = useAuthStore.getState();
+    if (!teacherId) throw new Error("يجب تسجيل الدخول");
+
+    const teacherRef = doc(db, "teachers", teacherId);
+    const studentDoc = await getDoc(doc(teacherRef, "students", studentId));
+
+    if (!studentDoc.exists()) {
+      return { success: false, error: "الطالب غير موجود" };
+    }
+
+    const data = studentDoc.data();
+    if (data.deletedAt !== null && data.deletedAt !== undefined) {
+      return { success: false, error: "تم نقل هذا الطالب لسلة المحذوفات" };
+    }
+
+    // Fetch class, group, and teacher names in parallel
+    const [classDocSnap, groupDocSnap, teacherDocSnap] = await Promise.all([
+      data.classId ? getDoc(doc(teacherRef, "classes", data.classId)) : Promise.resolve(null),
+      data.groupId ? getDoc(doc(teacherRef, "groups", data.groupId)) : Promise.resolve(null),
+      getDoc(teacherRef),
+    ]);
+
+    const className = classDocSnap?.exists() ? (classDocSnap.data()?.name as string) || "—" : "—";
+    const groupName = groupDocSnap?.exists() ? (groupDocSnap.data()?.name as string) || "—" : "—";
+    const teacherName = teacherDocSnap.exists()
+      ? (teacherDocSnap.data()?.name as string) || "الأستاذ"
+      : "الأستاذ";
+
+    const student: Student & { className: string; groupName: string; teacherName: string } = {
+      id: studentDoc.id,
+      name: (data.name as string) || "",
+      phone: (data.phone as string) || "",
+      classId: (data.classId as string) || "",
+      className,
+      groupId: (data.groupId as string) || "",
+      groupName,
+      teacherName,
+      parentName: (data.parentName as string) || "",
+      parentPhone: (data.parentPhone as string) || "",
+      photoUrl: data.photoUrl as string | undefined,
+      qrToken: (data.qrToken as string) || "",
+      parentQrToken: (data.parentQrToken as string) || "",
+      groupPrice: Number(data.groupPrice) || 0,
+      discount: Number(data.discount) || 0,
+      finalPrice: Number(data.finalPrice) || 0,
+      status: (data.status as StudentStatus) || "active",
+      blockReason: data.blockReason as string | undefined,
+      blockedAt: data.blockedAt as string | undefined,
+      blockedBy: data.blockedBy as string | undefined,
+      createdAt: (data.createdAt as string) || "",
+      updatedAt: (data.updatedAt as string) || "",
+    };
+
+    return { success: true, student };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "فشل جلب بيانات الطالب",
     };
   }
 }

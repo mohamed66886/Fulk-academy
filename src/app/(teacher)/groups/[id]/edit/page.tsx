@@ -1,23 +1,28 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getGroupById } from "@/lib/actions/groups";
+import { useParams, notFound } from "next/navigation";
+import { useGroupDetail } from "@/hooks/use-cached-data";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { GroupForm } from "../../group-form";
 
-export const dynamic = "force-dynamic";
+export default function EditGroupPage() {
+  const params = useParams<{ id: string }>();
+  const groupId = params.id;
+  const { data: result, isLoading } = useGroupDetail(groupId);
 
-interface EditGroupPageProps {
-  params: {
-    id: string;
-  };
-}
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="font-semibold">جاري تحميل بيانات المجموعة...</span>
+      </div>
+    );
+  }
 
-export default async function EditGroupPage({ params }: EditGroupPageProps) {
-  const result = await getGroupById(params.id);
-
-  if (!result.success || !result.groupData) {
+  if (!result?.success || !result.groupData) {
     notFound();
   }
 
@@ -46,14 +51,11 @@ export default async function EditGroupPage({ params }: EditGroupPageProps) {
           id: group.id,
           name: group.name,
           classId: group.classId,
+          schedule: group.schedule,
           price: group.price,
           hasCenter: group.hasCenter,
           centerSessionPrice: group.centerSessionPrice,
           status: group.status,
-          schedule:
-            group.schedule && group.schedule.length > 0
-              ? group.schedule
-              : [{ day: "saturday", startTime: "16:00", endTime: "18:00" }],
         }}
       />
     </div>

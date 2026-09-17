@@ -7,12 +7,14 @@ function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Data is considered fresh forever unless explicitly invalidated
-        staleTime: Infinity,
-        // Keep inactive cache in memory for 24 hours
-        gcTime: 24 * 60 * 60 * 1000,
+        // Base staleTime — individual hooks override this per data type
+        staleTime: 5 * 60 * 1000, // 5 minutes default
+        // Keep inactive cache in memory for 30 minutes
+        gcTime: 30 * 60 * 1000,
         // Disable aggressive window focus refetching
         refetchOnWindowFocus: false,
+        // Refresh stale data when network reconnects
+        refetchOnReconnect: true,
         // Retry failed queries once
         retry: 1,
       },

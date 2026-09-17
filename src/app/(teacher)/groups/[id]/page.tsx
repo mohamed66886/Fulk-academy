@@ -1,7 +1,9 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getGroupById } from "@/lib/actions/groups";
+import { useParams, notFound } from "next/navigation";
+import { useGroupDetail } from "@/hooks/use-cached-data";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -18,7 +20,6 @@ import { DAY_LABELS } from "@/lib/validators/group";
 import {
   Users,
   Calendar,
-  Clock,
   ArrowRight,
   Edit2,
   Building2,
@@ -31,18 +32,25 @@ import {
   Plus,
   ExternalLink,
   DollarSign,
+  Clock,
+  Loader2,
 } from "lucide-react";
 
-interface PageProps {
-  params: {
-    id: string;
-  };
-}
+export default function GroupDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const groupId = params.id;
+  const { data: res, isLoading } = useGroupDetail(groupId);
 
-export default async function GroupDetailsPage({ params }: PageProps) {
-  const res = await getGroupById(params.id);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="font-semibold">جاري تحميل بيانات المجموعة...</span>
+      </div>
+    );
+  }
 
-  if (!res.success || !res.groupData) {
+  if (!res?.success || !res.groupData) {
     notFound();
   }
 
@@ -255,16 +263,18 @@ export default async function GroupDetailsPage({ params }: PageProps) {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-border rounded-xl">
-                <UserCheck className="h-10 w-10 text-muted stroke-[1.5] mb-2" />
-                <h4 className="font-bold text-sm text-text">لا توجد جلسات حضور سابقة</h4>
-                <p className="text-xs text-muted mt-1 max-w-sm">
-                  لم يتم تسجيل أي حضور لهذه المجموعة بعد. يمكنك بدء تسجيل حضور الطلاب الآن.
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="h-12 w-12 rounded-full bg-surface flex items-center justify-center text-muted mb-3">
+                  <UserCheck className="h-6 w-6 opacity-50" />
+                </div>
+                <h3 className="font-bold text-text">لم يتم رصد أي غياب بعد</h3>
+                <p className="text-xs text-muted max-w-xs mt-1">
+                  لم يتم إنشاء أي جلسة حضور أو غياب لطلاب هذه المجموعة حتى الآن.
                 </p>
                 <Link href={`/attendance?groupId=${group.id}`} className="mt-4">
-                  <Button size="sm" className="gap-1.5 font-bold">
-                    <Plus className="h-4 w-4" />
-                    <span>تسجيل أول جلسة حضور</span>
+                  <Button variant="outline" size="sm" className="gap-2 text-xs">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>ابدأ رصد الحضور الآن</span>
                   </Button>
                 </Link>
               </div>
@@ -273,128 +283,99 @@ export default async function GroupDetailsPage({ params }: PageProps) {
         </Card>
       </div>
 
-      {/* Registered Students Table */}
+      {/* Students List */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">قائمة الطلاب المسجلين بالمجموعة</CardTitle>
-            </div>
-            <CardDescription className="mt-1">
-              الطلاب المقيدون بهذه المجموعة مع تفاصيل الأسعار الفردية والخصومات الخاصة بكل طالب.
-            </CardDescription>
-          </div>
-
-          <Link href={`/students/create?groupId=${group.id}`}>
-            <Button size="sm" className="gap-1.5 font-bold">
-              <Plus className="h-4 w-4" />
-              <span>إضافة طالب للمجموعة</span>
+        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            <span>قائمة طلاب المجموعة</span>
+          </CardTitle>
+          <Link href={`/students/create?groupId=${group.id}&classId=${group.classId}`}>
+            <Button size="sm" className="h-8 gap-1.5 text-xs font-bold px-3">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">إضافة طالب للمجموعة</span>
+              <span className="sm:hidden">إضافة</span>
             </Button>
           </Link>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>اسم الطالب</TableHead>
-                <TableHead>رقم هاتف الطالب</TableHead>
-                <TableHead>رقم ولي الأمر</TableHead>
-                <TableHead className="text-center">سعر المجموعة</TableHead>
-                <TableHead className="text-center">الخصم الفردي</TableHead>
-                <TableHead className="text-center">السعر النهائي (المستحق)</TableHead>
-                <TableHead className="text-center">الحالة</TableHead>
-                <TableHead className="text-center">الملف</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.length === 0 ? (
-                <TableEmpty
-                  colSpan={8}
-                  icon={<Users className="h-10 w-10 text-muted stroke-[1.5]" />}
-                  title="لا يوجد طلاب مسجلون في هذه المجموعة"
-                  description="ابدأ بإضافة أو نقل طلاب إلى هذه المجموعة لتظهر بياناتهم هنا."
-                />
-              ) : (
-                students.map((student) => (
-                  <TableRow key={student.id}>
-                    {/* Student Name */}
-                    <TableCell>
-                      <Link
-                        href={`/students/${student.id}`}
-                        className="font-bold text-text hover:text-primary transition-colors text-sm flex items-center gap-2"
-                      >
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                          {student.name.charAt(0)}
-                        </div>
-                        <span>{student.name}</span>
-                      </Link>
-                    </TableCell>
-
-                    {/* Student Phone */}
-                    <TableCell className="text-xs text-muted font-mono" dir="ltr">
-                      {student.phone || "—"}
-                    </TableCell>
-
-                    {/* Parent Phone */}
-                    <TableCell className="text-xs text-muted font-mono" dir="ltr">
-                      {student.parentPhone || "—"}
-                    </TableCell>
-
-                    {/* Group Base Price */}
-                    <TableCell className="text-center text-xs text-muted font-semibold">
-                      {student.groupPrice} ج.م
-                    </TableCell>
-
-                    {/* Student Discount */}
-                    <TableCell className="text-center">
-                      {student.discount > 0 ? (
-                        <span className="inline-flex items-center rounded-md bg-danger/10 text-danger px-2 py-0.5 text-xs font-bold">
-                          -{student.discount} ج.م
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted">لا يوجد</span>
-                      )}
-                    </TableCell>
-
-                    {/* Final Price */}
-                    <TableCell className="text-center">
-                      <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2.5 py-1 text-xs font-black">
-                        {student.finalPrice} ج.م
-                      </span>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="text-center">
-                      {student.status === "active" ? (
-                        <Badge variant="success" size="sm" dot>
-                          نشط
-                        </Badge>
-                      ) : (
-                        <Badge variant="danger" size="sm">
-                          محظور
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    {/* Action */}
-                    <TableCell className="text-center">
-                      <Link href={`/students/${student.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-muted hover:text-primary"
-                          title="عرض ملف الطالب"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-surface hover:bg-surface">
+                  <TableHead className="w-[200px]">الاسم</TableHead>
+                  <TableHead>الهاتف</TableHead>
+                  <TableHead>ولي الأمر</TableHead>
+                  <TableHead>المصروف المستحق</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead className="text-left">إجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {students.length === 0 ? (
+                  <TableEmpty
+                    colSpan={6}
+                    title="لا يوجد طلاب مسجلين في هذه المجموعة حالياً."
+                    description=""
+                  />
+                ) : (
+                  students.map(
+                    (student: {
+                      id: string;
+                      name: string;
+                      phone: string;
+                      parentPhone: string;
+                      finalPrice: number;
+                      discount: number;
+                      status: string;
+                    }) => (
+                      <TableRow key={student.id} className="group hover:bg-surface/50">
+                        <TableCell className="font-bold text-text">{student.name}</TableCell>
+                        <TableCell className="dir-ltr text-right text-muted text-sm">
+                          {student.phone}
+                        </TableCell>
+                        <TableCell className="dir-ltr text-right text-muted text-sm">
+                          {student.parentPhone}
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-bold text-primary">
+                            {student.finalPrice > 0 ? `${student.finalPrice} ج.م` : "مجاني"}
+                          </span>
+                          {student.discount > 0 && (
+                            <span className="text-[10px] text-muted block">
+                              خصم {student.discount} ج.م
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {student.status === "active" ? (
+                            <Badge variant="success" className="text-[10px]" dot>
+                              نشط
+                            </Badge>
+                          ) : (
+                            <Badge variant="danger" className="text-[10px]">
+                              محظور
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-left">
+                          <Link href={`/students/${student.id}`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted hover:text-text opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

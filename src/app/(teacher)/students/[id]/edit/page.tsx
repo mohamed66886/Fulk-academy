@@ -1,23 +1,28 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getStudentById } from "@/lib/actions/students";
+import { useParams, notFound } from "next/navigation";
+import { useStudentDetail } from "@/hooks/use-cached-data";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { StudentForm } from "../../student-form";
 
-export const dynamic = "force-dynamic";
+export default function EditStudentPage() {
+  const params = useParams<{ id: string }>();
+  const studentId = params.id;
+  const { data: studentRes, isLoading } = useStudentDetail(studentId);
 
-interface EditStudentPageProps {
-  params: {
-    id: string;
-  };
-}
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="font-semibold">جاري تحميل بيانات الطالب...</span>
+      </div>
+    );
+  }
 
-export default async function EditStudentPage({ params }: EditStudentPageProps) {
-  const studentRes = await getStudentById(params.id);
-
-  if (!studentRes.success || !studentRes.student) {
+  if (!studentRes?.success || !studentRes.student) {
     notFound();
   }
 

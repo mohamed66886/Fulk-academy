@@ -1,8 +1,10 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { notFound } from "next/navigation";
-import { getStudentById } from "@/lib/actions/students";
+import { useParams, notFound } from "next/navigation";
+import { useStudentDetail } from "@/hooks/use-cached-data";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,18 +22,24 @@ import {
   CreditCard,
   Award,
   IdCard,
+  Loader2,
 } from "lucide-react";
 
-interface PageProps {
-  params: {
-    id: string;
-  };
-}
+export default function StudentProfilePage() {
+  const params = useParams<{ id: string }>();
+  const studentId = params.id;
+  const { data: res, isLoading } = useStudentDetail(studentId);
 
-export default async function StudentProfilePage({ params }: PageProps) {
-  const res = await getStudentById(params.id);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="font-semibold">جاري تحميل بيانات الطالب...</span>
+      </div>
+    );
+  }
 
-  if (!res.success || !res.student) {
+  if (!res?.success || !res.student) {
     notFound();
   }
 
