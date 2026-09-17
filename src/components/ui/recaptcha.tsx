@@ -32,8 +32,8 @@ interface ReCaptchaProps {
   className?: string;
 }
 
-// Google reCAPTCHA site key registered for academy.fulkegy.com
-const DEFAULT_SITE_KEY = "6Lf1OMAtAAAAACOPo0x17SKop1B92WtzfgjY08rQ";
+// Google reCAPTCHA v2 site key registered for academy.fulkegy.com
+const DEFAULT_SITE_KEY = "6LcdP8AtAAAAABZ82C6ZBfTA_gbRC65DCpvwnPdM";
 
 export function ReCaptcha({ onVerify, onExpire, className }: ReCaptchaProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
