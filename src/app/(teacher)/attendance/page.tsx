@@ -160,17 +160,40 @@ function AttendanceContent() {
     };
   }, [activeSession?.session.id, triggerSync]);
 
-  // 1. Fetch Today Info on Mount
+  // 1. Fetch Today Info on Mount with Offline Fallback
   const fetchInitialData = React.useCallback(async () => {
     setIsLoadingInitial(true);
     try {
       const res = await getTodayAttendanceInfo();
       if (res.success && res.data) {
         setTodayInfo(res.data);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("fulk_today_attendance_info", JSON.stringify(res.data));
+          } catch {
+            // ignore
+          }
+        }
 
         // If URL provided groupId, launch session directly
         if (urlGroupId) {
           startSessionForGroup(urlGroupId);
+        }
+      }
+    } catch {
+      // Offline fallback for today info
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem("fulk_today_attendance_info");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setTodayInfo(parsed);
+            if (urlGroupId) {
+              startSessionForGroup(urlGroupId);
+            }
+          } catch {
+            // ignore
+          }
         }
       }
     } finally {
@@ -182,19 +205,60 @@ function AttendanceContent() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // 2. Start / Resume Session for a group
+  // 2. Start / Resume Session for a group with Offline Fallback
   const startSessionForGroup = async (groupId: string) => {
     setIsLoadingSession(true);
     setLastScanResult(null);
     try {
       const res = await getOrCreateAttendanceSession(groupId);
       if (!res.success || !res.data) {
+        // Try local storage cache
+        if (typeof window !== "undefined") {
+          const cached = localStorage.getItem(`fulk_active_session_${groupId}`);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              setActiveSession(parsed);
+              const count = await getPendingScansCount(parsed.session.id);
+              setPendingQueueCount(count);
+              toast.info("أنت في وضع عدم الاتصال — تم استرجاع بيانات الجلسة والطلاب محلياً");
+              return;
+            } catch {
+              // ignore
+            }
+          }
+        }
         toast.error(res.error || "تعذر فتح جلسة الحضور لهذه المجموعة");
         return;
       }
       setActiveSession(res.data);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`fulk_active_session_${groupId}`, JSON.stringify(res.data));
+        } catch {
+          // ignore
+        }
+      }
       const count = await getPendingScansCount(res.data.session.id);
       setPendingQueueCount(count);
+    } catch {
+      // Network failed / offline
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem(`fulk_active_session_${groupId}`);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setActiveSession(parsed);
+            const count = await getPendingScansCount(parsed.session.id);
+            setPendingQueueCount(count);
+            toast.info("أنت في وضع عدم الاتصال — تم استرجاع بيانات الجلسة والطلاب محلياً");
+            return;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      toast.error("تعذر الاتصال بالخادم ولا توجد بيانات محفوظة محلياً لهذه المجموعة");
     } finally {
       setIsLoadingSession(false);
     }
@@ -223,9 +287,47 @@ function AttendanceContent() {
         const { token, source } = item;
         const online = isOnlineRef.current;
 
-        // If Offline: Save locally to IndexedDB queue with duplicate check
+        // Match student from loaded registered students (if available)
+        const matchedStudent = currentSession.registeredStudents?.find((s) => s.qrToken === token);
+
+        // 1. If Offline: Save locally to IndexedDB queue with full student info & duplicate check
         if (!online) {
           try {
+            // Check if student is blocked (even offline!)
+            if (matchedStudent && matchedStudent.status === "blocked") {
+              soundEffects.playBlocked();
+              setLastScanResult({
+                success: false,
+                status: "blocked",
+                studentId: matchedStudent.id,
+                studentName: matchedStudent.name,
+                message: `تنبيه: الطالب "${matchedStudent.name}" محظور وممنوع من الحضور!`,
+                source,
+                scannedAt: new Date().toISOString(),
+              });
+              continue;
+            }
+
+            // Check duplicate in current local session records
+            const isAlreadyRecorded = currentSession.records.some(
+              (r) =>
+                (matchedStudent && r.studentId === matchedStudent.id) ||
+                r.studentId === `offline_${token}`
+            );
+
+            if (isAlreadyRecorded) {
+              soundEffects.playDuplicate();
+              setLastScanResult({
+                success: false,
+                status: "already_recorded",
+                message: `تم رصد حضور الطالب "${matchedStudent?.name || token}" مسبقاً في هذه الجلسة`,
+                studentName: matchedStudent?.name,
+                source,
+                scannedAt: new Date().toISOString(),
+              });
+              continue;
+            }
+
             const queueRes = await enqueueOfflineScan({
               sessionId: currentSession.session.id,
               groupId: currentSession.session.groupId,
@@ -252,22 +354,25 @@ function AttendanceContent() {
             if (queueRes.success) {
               soundEffects.playSuccess();
               const nowStr = new Date().toISOString();
+              const displayName = matchedStudent ? matchedStudent.name : `كود طالب: ${token}`;
+
               setLastScanResult({
                 success: true,
                 status: "success",
-                message:
-                  "تم حفظ المسح محلياً في قائمة الانتظار (سيتم المزامنة تلقائياً عند عودة الاتصال)",
-                studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
+                message: "تم حفظ الحضور محلياً بنجاح (سيتم المزامنة تلقائياً عند عودة الاتصال)",
+                studentName: displayName,
                 source,
                 scannedAt: nowStr,
               });
 
-              // Add temporary local entry to records list
+              // Add entry to records list using real studentId and studentName
               const localRecord: SessionRecordItem = {
-                id: `temp_${Date.now()}`,
-                studentId: `offline_${token}`,
-                studentName: `طالب أوفلاين (${token.length > 10 ? `${token.slice(0, 8)}...` : token})`,
-                studentPhone: "",
+                id: matchedStudent ? matchedStudent.id : `temp_${Date.now()}`,
+                studentId: matchedStudent ? matchedStudent.id : `offline_${token}`,
+                studentName: matchedStudent
+                  ? matchedStudent.name
+                  : `طالب أوفلاين (${token.length > 10 ? `${token.slice(0, 8)}...` : token})`,
+                studentPhone: matchedStudent ? matchedStudent.phone : "",
                 status: "present",
                 scannedAt: nowStr,
                 source,
@@ -275,7 +380,11 @@ function AttendanceContent() {
 
               setActiveSession((prev) => {
                 if (!prev) return prev;
-                return {
+                // Avoid duplicates
+                if (prev.records.some((r) => r.studentId === localRecord.studentId)) {
+                  return prev;
+                }
+                const updated = {
                   ...prev,
                   session: {
                     ...prev.session,
@@ -283,6 +392,17 @@ function AttendanceContent() {
                   },
                   records: [localRecord, ...prev.records],
                 };
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem(
+                      `fulk_active_session_${updated.session.groupId}`,
+                      JSON.stringify(updated)
+                    );
+                  } catch {
+                    // ignore quota
+                  }
+                }
+                return updated;
               });
               continue;
             }
@@ -293,7 +413,7 @@ function AttendanceContent() {
           continue;
         }
 
-        // If Online: Call atomic recordAttendanceScan Server Action
+        // 2. If Online: Call atomic recordAttendanceScan Server Action
         try {
           const res = await recordAttendanceScan({
             sessionId: currentSession.session.id,
@@ -319,7 +439,7 @@ function AttendanceContent() {
 
             setActiveSession((prev) => {
               if (!prev) return prev;
-              return {
+              const updated = {
                 ...prev,
                 session: {
                   ...prev.session,
@@ -327,6 +447,17 @@ function AttendanceContent() {
                 },
                 records: [newRecord, ...prev.records.filter((r) => r.studentId !== res.studentId)],
               };
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.setItem(
+                    `fulk_active_session_${updated.session.groupId}`,
+                    JSON.stringify(updated)
+                  );
+                } catch {
+                  // ignore quota
+                }
+              }
+              return updated;
             });
           } else if (res.status === "wrong_group") {
             soundEffects.playWarning();
@@ -360,18 +491,57 @@ function AttendanceContent() {
               });
             } else if (queueRes.success) {
               soundEffects.playSuccess();
+              const nowStr = new Date().toISOString();
+              const displayName = matchedStudent ? matchedStudent.name : `كود طالب: ${token}`;
+
               setLastScanResult({
                 success: true,
                 status: "success",
-                message:
-                  "تعذر الاتصال بالخادم — تم حفظ الكود محلياً في قائمة الانتظار للمزامنة اللاحقة",
-                studentName: `كود طالب: ${token.length > 14 ? `${token.substring(0, 12)}...` : token}`,
+                message: "تعذر الاتصال بالخادم — تم حفظ الحضور محلياً بنجاح للمزامنة اللاحقة",
+                studentName: displayName,
                 source,
-                scannedAt: new Date().toISOString(),
+                scannedAt: nowStr,
+              });
+
+              // Add to local session records so student is marked present in UI
+              const localRecord: SessionRecordItem = {
+                id: matchedStudent ? matchedStudent.id : `temp_${Date.now()}`,
+                studentId: matchedStudent ? matchedStudent.id : `offline_${token}`,
+                studentName: matchedStudent ? matchedStudent.name : `طالب (${token})`,
+                studentPhone: matchedStudent ? matchedStudent.phone : "",
+                status: "present",
+                scannedAt: nowStr,
+                source,
+              };
+
+              setActiveSession((prev) => {
+                if (!prev) return prev;
+                if (prev.records.some((r) => r.studentId === localRecord.studentId)) {
+                  return prev;
+                }
+                const updated = {
+                  ...prev,
+                  session: {
+                    ...prev.session,
+                    presentCount: prev.session.presentCount + 1,
+                  },
+                  records: [localRecord, ...prev.records],
+                };
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem(
+                      `fulk_active_session_${updated.session.groupId}`,
+                      JSON.stringify(updated)
+                    );
+                  } catch {
+                    // ignore quota
+                  }
+                }
+                return updated;
               });
             }
           } catch {
-            toast.error("حدث خطأ أثناء معالجة كود المسح");
+            toast.error("حدث خطأ أثناء معالجة كود المسح محلياً");
           }
         }
       }
