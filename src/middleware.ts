@@ -63,10 +63,12 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/super-admin/");
   const isLoginPage = pathname === "/login";
 
-  // 1. Unauthenticated users trying to access protected routes -> redirect to /login
-  if (!isAuthenticated && (isTeacherRoute || isSuperAdminRoute)) {
+  // 1. Unauthenticated users trying to access protected routes or root -> redirect to /login
+  if (!isAuthenticated && (isTeacherRoute || isSuperAdminRoute || pathname === "/")) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    if (pathname !== "/") {
+      loginUrl.searchParams.set("callbackUrl", pathname);
+    }
     return NextResponse.redirect(loginUrl);
   }
 

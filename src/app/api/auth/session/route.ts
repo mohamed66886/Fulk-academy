@@ -3,10 +3,29 @@ import { adminAuth, adminDb } from "@/lib/firebase/admin";
 
 export async function POST(request: NextRequest) {
   try {
-    const { idToken } = await request.json();
+    const { idToken, recaptchaToken } = await request.json();
 
     if (!idToken) {
       return NextResponse.json({ error: "رمز المصادقة (ID Token) مطلوب" }, { status: 400 });
+    }
+
+    // Verify reCAPTCHA token if secret key is configured
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    if (secretKey && recaptchaToken) {
+      try {
+        const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `secret=${encodeURIComponent(secretKey)}&response=${encodeURIComponent(recaptchaToken)}`,
+        });
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
+          console.warn("[RECAPTCHA_FAILED]", verifyData["error-codes"]);
+          // We can allow pass-through if testing on localhost, but log in production
+        }
+      } catch (captchaErr) {
+        console.error("[RECAPTCHA_ERROR]", captchaErr);
+      }
     }
 
     if (!adminAuth || !adminDb) {

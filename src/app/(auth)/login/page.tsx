@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,12 +11,18 @@ import { auth } from "@/lib/firebase/client";
 import { loginSchema, type LoginFormData } from "@/lib/validators/auth";
 import { getFirebaseAuthErrorMessage } from "@/lib/utils/firebase-errors";
 import { useAuthStore, type UserRole } from "@/stores";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FormField } from "@/components/ui/form-field";
 import { toast } from "@/components/ui/toast";
-import { Compass, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Lock,
+  Mail,
+  AlertCircle,
+  Loader2,
+  HelpCircle,
+  X,
+  PlayCircle,
+  PhoneCall,
+} from "lucide-react";
+import { ReCaptcha } from "@/components/ui/recaptcha";
 
 function LoginForm() {
   const router = useRouter();
@@ -24,6 +31,8 @@ function LoginForm() {
 
   const setAuth = useAuthStore((state) => state.setAuth);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
+  const [showHelpModal, setShowHelpModal] = React.useState(false);
 
   const {
     register,
@@ -39,6 +48,11 @@ function LoginForm() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
+    if (!captchaToken) {
+      toast.error("يرجى إكمال التحقق من خانة 'أنا لست برنامج روبوت' أولاً.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       // 1. Authenticate with Firebase Auth Client SDK
@@ -51,7 +65,7 @@ function LoginForm() {
       const sessionResponse = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ idToken, recaptchaToken: captchaToken }),
       });
 
       let sessionResult;
@@ -107,89 +121,185 @@ function LoginForm() {
   };
 
   return (
-    <Card className="w-full max-w-md border-border bg-surface shadow-xl">
-      <CardHeader className="space-y-2 text-center pb-6">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
-          <Compass className="h-7 w-7" />
-        </div>
-        <CardTitle className="text-2xl font-extrabold text-text tracking-tight">
-          فُلك أكاديمي
-        </CardTitle>
-        <CardDescription className="text-xs text-muted">
-          يرجى إدخال بيانات الدخول المعتمدة للوصول إلى لوحة التحكم
-        </CardDescription>
-      </CardHeader>
+    <div className="w-full max-w-[440px]">
+      {/* Title Outside Card */}
+      <h1 className="text-3xl sm:text-[34px] font-extrabold text-[#23272f] tracking-tight mb-6 text-center font-sans">
+        FULK-ACADEMY
+      </h1>
 
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} method="POST" className="space-y-4">
+      {/* Main Card */}
+      <div className="bg-white border border-[#dce2e9] rounded-[4px] shadow-xs p-6 sm:p-9 text-slate-800">
+        {/* Red Notice */}
+        <div className="text-center mb-4">
+          <p className="text-[#dc2626] text-xs sm:text-[13px] font-bold leading-relaxed">
+            تنبيه أمني: يُرجى الحفاظ التام على خصوصية وسرية بيانات الطلاب وعدم مشاركة بيانات الطلاب
+            مع أي طرف آخر
+          </p>
+        </div>
+
+        {/* Credentials Subtitle */}
+        <p className="text-center text-[#596273] text-[15px] font-normal mb-2.5">
+          Enter your credentials
+        </p>
+
+        {/* Watch Help Video Link */}
+        <div className="text-center mb-5">
+          <button
+            type="button"
+            onClick={() => setShowHelpModal(true)}
+            className="inline-flex items-center gap-1.5 text-[#0d6efd] hover:text-[#0b5ed7] text-[14px] font-medium transition-colors"
+          >
+            <HelpCircle className="w-4 h-4 fill-[#0d6efd] text-white" />
+            <span>Watch Help Video</span>
+          </button>
+        </div>
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit(onSubmit)} method="POST" className="space-y-3.5">
           {/* Global Error Banner */}
           {errors.root && (
-            <div className="flex items-center gap-2.5 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs font-medium text-danger animate-in fade-in-50">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded border border-red-200 bg-red-50 p-2.5 text-xs text-red-600">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errors.root.message}</span>
             </div>
           )}
 
-          {/* Email Field */}
-          <FormField id="email" label="البريد الإلكتروني" required error={errors.email?.message}>
-            <div className="relative">
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                autoComplete="email"
-                dir="ltr"
-                className="pl-9 text-left font-mono"
-                error={!!errors.email}
-                disabled={isLoading}
-                {...register("email")}
-              />
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            </div>
-          </FormField>
+          {/* Email or Username Input */}
+          <div className="relative">
+            <input
+              id="email"
+              type="text"
+              placeholder="Email or username"
+              dir="ltr"
+              autoComplete="username"
+              disabled={isLoading}
+              {...register("email")}
+              className={`w-full h-11 px-3.5 pr-10 bg-white border ${
+                errors.email ? "border-red-500 ring-1 ring-red-500/20" : "border-[#ced4da]"
+              } rounded-[4px] text-[14px] text-gray-800 placeholder:text-[#6c757d] focus:outline-none focus:border-[#80bdff] focus:ring-2 focus:ring-[#007bff]/20 transition-colors`}
+            />
+            <Mail className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6c757d]" />
+          </div>
+          {errors.email && (
+            <p className="text-[11px] text-red-600 text-right font-medium">
+              {errors.email.message}
+            </p>
+          )}
 
-          {/* Password Field */}
-          <FormField id="password" label="كلمة المرور" required error={errors.password?.message}>
-            <div className="relative">
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                dir="ltr"
-                className="pl-9 text-left font-mono"
-                error={!!errors.password}
-                disabled={isLoading}
-                {...register("password")}
-              />
-              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            </div>
-          </FormField>
+          {/* Password Input */}
+          <div className="relative">
+            <input
+              id="password"
+              type="password"
+              placeholder="Password"
+              dir="ltr"
+              autoComplete="current-password"
+              disabled={isLoading}
+              {...register("password")}
+              className={`w-full h-11 px-3.5 pr-10 bg-white border ${
+                errors.password ? "border-red-500 ring-1 ring-red-500/20" : "border-[#ced4da]"
+              } rounded-[4px] text-[14px] text-gray-800 placeholder:text-[#6c757d] focus:outline-none focus:border-[#80bdff] focus:ring-2 focus:ring-[#007bff]/20 transition-colors`}
+            />
+            <Lock className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6c757d]" />
+          </div>
+          {errors.password && (
+            <p className="text-[11px] text-red-600 text-right font-medium">
+              {errors.password.message}
+            </p>
+          )}
 
-          {/* Submit Button */}
-          <Button type="submit" className="w-full mt-2 font-bold" size="lg" isLoading={isLoading}>
-            تسجيل الدخول
-          </Button>
+          {/* Real Google reCAPTCHA Component */}
+          <ReCaptcha
+            onVerify={(token) => {
+              setCaptchaToken(token);
+            }}
+            onExpire={() => {
+              setCaptchaToken(null);
+            }}
+          />
+
+          {/* Login Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-11 bg-[#007bff] hover:bg-[#0069d9] active:bg-[#0062cc] text-white font-medium text-[15px] rounded-[4px] transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
+          >
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Login"}
+          </button>
+
+          {/* Exam Center Button */}
+          <Link
+            href="/exams"
+            className="w-full h-11 bg-white hover:bg-[#f8fcf9] text-[#28a745] border border-[#28a745] font-medium text-[15px] rounded-[4px] transition-colors flex items-center justify-center text-center mt-2"
+          >
+            Exam Center
+          </Link>
         </form>
+      </div>
 
-        {/* Institutional note (No Sign up notice) */}
-        <div className="mt-6 border-t border-border pt-4 text-center">
-          <p className="text-[11px] text-muted leading-relaxed">
-            منصة مغلقة — إنشاء الحسابات يتم حصريًا من خلال إدارة المنصة
-          </p>
+      {/* Watch Help Video Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in-50">
+          <div className="w-full max-w-md bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
+                <PlayCircle className="w-4 h-4" />
+                <span>دليل الاستخدام وفيديو المساعدة</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 text-right space-y-4 text-sm text-gray-700">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-800 leading-relaxed">
+                <strong>تنبيه أمني للمعلم:</strong> يُرجى الحفاظ التام على خصوصية وسرية بيانات
+                الطلاب ودرجاتهم، وتجنب مشاركة كلمة المرور مع أي شخص غير مخول لضمان أمان النظام.
+              </div>
+              <ul className="space-y-2 text-xs text-gray-600 list-disc list-inside">
+                <li>استخدم بريدك الإلكتروني وكلمة المرور المعتمدة.</li>
+                <li>اضغط على زر Exam Center للوصول السريع إلى قسم الامتحانات.</li>
+                <li>في حال واجهت أي صعوبة، يمكنك التواصل مباشرة مع الدعم الفني.</li>
+              </ul>
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                <a
+                  href="https://wa.me/201551290902?text=مرحباً،%20أحتاج%20مساعدة%20في%20تسجيل%20الدخول%20لمنصة%20فُلك%20أكاديمي"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-bold hover:underline"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>مساعدة واتساب: 201551290902+</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowHelpModal(false)}
+                  className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded text-xs font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-background" dir="rtl">
+    <div
+      className="min-h-screen bg-[#eaedf1] flex flex-col items-center justify-center p-4 py-8"
+      dir="rtl"
+    >
       <Suspense
         fallback={
-          <div className="flex h-64 w-full max-w-md items-center justify-center rounded-xl border border-border bg-surface">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex h-64 w-full max-w-[440px] items-center justify-center rounded bg-white shadow-xs">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         }
       >
